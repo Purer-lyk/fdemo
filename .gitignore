@@ -1,0 +1,8 @@
+*.mp4
+*.png
+*.jpg
+*.cmake
+*.bin
+/ioControl/fdemo/build/CMakeFiles
+/ioControl/fdemo/cmake-build-debug
+/ioControl/fdemo/log

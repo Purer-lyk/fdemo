@@ -1,0 +1,4 @@
+rstOrNot:0
+imgLight:60
+ycOffset:20
+threshold:0.4

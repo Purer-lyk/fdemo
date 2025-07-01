@@ -1,0 +1,16 @@
+rstOrNot:0
+imgLight:60
+ycOffset:20
+rangePosx:50
+rangePosy:40
+scanYaw:400
+scanPitch:40
+threshold:0.4
+leftDirect:0
+upDirect:0
+yawInitPos:10000
+pitchInitPos:12000
+distinct:2
+modbusIP:127.0.0.1
+modbusPORT:1502
+flipFlag:1

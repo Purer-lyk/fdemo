@@ -1,0 +1,8 @@
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=fire
+Comment=
+Exec=gnome-terminal -t "fireDemo" -x bash -c "/home/l/ioControl/fdemo/build/fireDemo;exec bash;" 
+StartupNotify=false
+Terminal=false
