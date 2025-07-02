@@ -1,5 +1,6 @@
 #include "modbus_m_client.h"
 #include <iostream>
+#include <stdexcept>
 
 modbusClient::modbusClient(std::string _ip, int _port):
 ip(_ip),
@@ -52,20 +53,24 @@ bool modbusClient::modbusDisConnect(){
     return true;
 }
 
-void modbusClient::writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE){
-	if(ctx==nullptr) return;
-	//BIT_SIZE = UT_BITS_NB;
-	
-	int rc;
-	uint8_t value;
-	uint8_t tab_value[BIT_SIZE];
-	modbus_set_bits_from_bytes(tab_value, 0, BIT_SIZE, M_BITS);
-	rc = modbus_write_bits(ctx, UT_BITS_ADDRESS, BIT_SIZE, tab_value);
-	printf("1/2 modbus_write_bits: ");
-	ASSERT_TRUE(rc == BIT_SIZE, "");
-	
-	
-	rc = modbus_read_bits(ctx, UT_BITS_ADDRESS, BIT_SIZE, tab_rp_bits);
+bool modbusClient::writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE){
+    if(ctx==nullptr) return false;
+    //BIT_SIZE = UT_BITS_NB;
+    
+    int rc;
+    uint8_t value;
+    uint8_t tab_value[BIT_SIZE];
+    modbus_set_bits_from_bytes(tab_value, 0, BIT_SIZE, M_BITS);
+    rc = modbus_write_bits(ctx, UT_BITS_ADDRESS, BIT_SIZE, tab_value);
+    if(rc==-1){
+	modbus_close(ctx);
+	return false;
+    }
+    printf("1/2 modbus_write_bits: ");
+    ASSERT_TRUE(rc == BIT_SIZE, "");
+    
+    
+    /*rc = modbus_read_bits(ctx, UT_BITS_ADDRESS, BIT_SIZE, tab_rp_bits);
     printf("2/2 modbus_read_bits: ");
     ASSERT_TRUE(rc == BIT_SIZE, "FAILED (nb points %d)\n", rc);
 
@@ -81,7 +86,9 @@ void modbusClient::writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE){
 
         nb_points -= nb_bits;
         i++;
-    }
+    }*/
+    
+    return true;
 }
 
 

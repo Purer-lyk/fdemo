@@ -39,11 +39,12 @@ private:
 	std::string modbusIP;
 	int modbusPORT;
 	bool flipFlag;
+	int device;
 	
 	bool feedbackControlpp(const std::vector<Object>& objs, const int& uv);
 	void cameraScan();
 	void upAndDownTrigger(int randomCurrent);
-	void modbusTransfer();
+	bool modbusTransfer();
 	void checkModbus();
 	void obtainPos();
 	void readParams();

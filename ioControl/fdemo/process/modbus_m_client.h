@@ -41,7 +41,7 @@ public:
 		
     bool modbusConnect();
     bool modbusDisConnect();
-    void writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE);
+    bool writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE);
     void writeRegisters();
 	
 private:

@@ -23,7 +23,8 @@ leftDirect(1),
 upDirect(1),
 yawInitPos(5000),
 pitchInitPos(12000),
-distinct(2)
+distinct(2),
+device(0)
 {
 	readParams();
 	direct_56 = scanYaw/4;
@@ -69,6 +70,7 @@ void mainSystem::readParams(){
 					else if(paramName=="modbusIP") modbusIP = paramStr;
 					else if(paramName=="modbusPORT") modbusPORT = std::stoi(paramStr);
 					else if(paramName=="flipFlag") flipFlag = (bool)std::stoi(paramStr);
+					else if(paramName=="device") device = std::stoi(paramStr);
 				}
 			}
 		}
@@ -92,7 +94,6 @@ void mainSystem::run() {
 	
 	if(rstOrNot) controller->resetPos(yawInitPos, pitchInitPos);
 	while(v.isOpened()){
-		printf("in\n");
 		checkModbus();
 		
 		v.read(frame);
@@ -135,7 +136,7 @@ void mainSystem::run() {
 		// 	fireStatus = 0;
 		// 	controller->unTrigger();
 		// }
-		if(modbusTcpStatus)modbusTransfer();
+		if(modbusTcpStatus) modbusTcpStatus = modbusTransfer();
 		//imshow("origin", frame);
 		imshow("result",dst);
 		
@@ -280,7 +281,7 @@ void mainSystem::upAndDownTrigger(int randomCurrent){
 	delay(500);
 }
 
-void mainSystem::modbusTransfer(){
+bool mainSystem::modbusTransfer(){
 	uint8_t M_BIT1 = 0x00; 
 	if(currentPos>distinct) M_BIT1=0x01;
 	else if(currentPos<-distinct) M_BIT1=0x03;
@@ -291,8 +292,10 @@ void mainSystem::modbusTransfer(){
 	else if(fireStatus==2) M_BIT2=0x02;
 	else if(fireStatus==3) M_BIT2=0x03;
 	
-	uint8_t M_BITS[] = {M_BIT1,M_BIT2};
-	modbuser->writeBits(M_BITS, 0x10);
+	uint8_t M_BIT3 = device;
+	
+	uint8_t M_BITS[] = {M_BIT1,M_BIT2, M_BIT3};
+	return modbuser->writeBits(M_BITS, 0x18);
 }
 
 void mainSystem::obtainPos(){

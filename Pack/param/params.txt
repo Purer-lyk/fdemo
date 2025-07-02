@@ -14,3 +14,4 @@ distinct:2
 modbusIP:127.0.0.1
 modbusPORT:1502
 flipFlag:1
+device:255
