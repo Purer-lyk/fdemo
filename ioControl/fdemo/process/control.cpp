@@ -3,16 +3,17 @@
 #include <fstream>
 #include <string>
 
-WiringControl::WiringControl(int leftDirect, int upDirect):
+WiringControl::WiringControl(int leftDirect, int upDirect, int yawLi):
 direct_56(0),
 direct_2324(0),
-timePos(0),
-startFlag(0),
+timePos56(0),
+startFlag56(0),
 smoking(0),
 leftFlag(leftDirect),
 rightFlag(!leftDirect),
 upFlag(upDirect),
-downFlag(!upDirect)
+downFlag(!upDirect),
+yawLimit(yawLi)
 {
 	readParams();
 }
@@ -147,16 +148,21 @@ bool WiringControl::rotateMotor_56(int direct){
 	direct_56 = direct;
 	startMotor_56();
 	auto tmp = std::chrono::high_resolution_clock::now();
-	if(startFlag==0){
-		startFlag=1;
-		tickPoint=tmp;
+	if(startFlag56==0){
+		startFlag56=1;
+		tickPoint56=tmp;
 	}
 	else{
-		double duration = seconds_duration(tmp-tickPoint).count();
-		tickPoint=tmp;
-		if(direct_56) timePos-=duration;
-		else timePos+=duration;
+		double duration = seconds_duration(tmp-tickPoint56).count();
+		tickPoint56=tmp;
+		if(direct_56==leftFlag) timePos56-=duration;
+		else timePos56+=duration;
 	}
+
+	// if(abs(timePos)>yawLimit){ todo:不一定用
+	// 	rstZeroYaw();
+	// }
+
 	//首先设置正反转,HIGH表示left,LOW表示right
 	digitalWrite(LAR_DIR, direct);
 	
@@ -193,23 +199,25 @@ bool WiringControl::startMotor_2324(){
 
 //left and right halter, low is right, right is plus; high is left, left is minus
 bool WiringControl::stopMotor_56(){
-	if(startFlag){
+	if(startFlag56){
 		auto tmp = std::chrono::high_resolution_clock::now();
-		double duration = seconds_duration(tmp-tickPoint).count();
-		tickPoint = tmp;
-		if(direct_56) timePos-=duration;
-		else timePos+=duration; 
-		startFlag=0;
+		double duration = seconds_duration(tmp-tickPoint56).count();
+		tickPoint56 = tmp;
+		if(direct_56==leftFlag) timePos56-=duration;
+		else timePos56+=duration; 
+		startFlag56=0;
 	}
 	softPwmWrite(LAR_PUL, 0);
 	digitalWrite(LAR_EN, HIGH);//disable
+	direct_56=0;
 	return true;
 }
 
 //up and down halter, low is down, high is up
 bool WiringControl::stopMotor_2324(){
 	softPwmWrite(UAD_PUL, 0);
-	digitalWrite(UAD_EN, HIGH);//disable
+	digitalWrite(UAD_EN, HIGH);//disable222
+	direct_2324=0;
 	return true;
 }
 
@@ -286,6 +294,26 @@ int WiringControl::readSmoke(){
 		printf("SMOKE nothing\n");
 	}
 	return smokeStatus;
+}
+
+//todo:可能改善yaw轴扫描的问题，pitch轴问题得增加pitch位姿解算
+void WiringControl::rstZeroYaw(){
+	// while(abs(timPos)>=1){
+	// 	rotateMotor_56(direct56);
+	// }
+	if(timePos>=1){
+		rotateMotor_56(leftFlag);
+	}
+	else if(timePos<=-1){
+		rotateMotor_56(rightFlag);
+	}
+	stopMotor_56();
+}
+
+int WiringControl::inLimit(){
+	if(timePos<=-yawLimit) return -1;
+	else if(timePos>=yawLimit) return 1;
+	else return 0;
 }
 
 

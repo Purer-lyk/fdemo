@@ -11,7 +11,7 @@ using seconds_duration = std::chrono::duration<double>;
 
 class WiringControl{
 public:
-	WiringControl(int leftDirect, int upDirect);
+	WiringControl(int leftDirect, int upDirect, int yawLi);
 	~WiringControl();
 
 	bool inOpen();
@@ -29,7 +29,10 @@ public:
 	double getPosition();
 	bool resetPos(int yawInit, int pitchInit);
 	int readSmoke();
+	void rstZeroYaw();
+	int inLimit();
 	int smoking;
+	
 
 private:
 	uint8_t LAR_LIMIT;
@@ -49,11 +52,14 @@ private:
 	int fd;
 	int direct_56;
 	int direct_2324;
-	double timePos;
-	int startFlag;
+	
 	int leftFlag, rightFlag;
 	int upFlag, downFlag;
-	std::chrono::high_resolution_clock::time_point tickPoint;
+	int yawLimit;
+
+	int startFlag56;
+	double timePos56;
+	std::chrono::high_resolution_clock::time_point tickPoint56;
 	
 	void readParams();
 };

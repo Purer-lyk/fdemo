@@ -11,20 +11,23 @@ rangePosx(30),
 rangePosy(20),
 accumulateTrace(0),
 modbusReconnect(0),
+tcpReconnect(0),
 currentPos(0),
 modbusTcpStatus(false),
+tcpStatus(false),
 fireStatus(0),
 triggerCount(0),
 rstOrNot(false),
 imgLight(60.0),
 ycOffset(20),
+yawLimit(10),
 gthreshold(0.6),
 leftDirect(1),
 upDirect(1),
 yawInitPos(5000),
 pitchInitPos(12000),
-distinct(2),
-device(0)
+device(0),
+scanOrTrace(0)
 {
 	readParams();
 	direct_56 = scanYaw/4;
@@ -61,12 +64,21 @@ void mainSystem::readParams(){
 					else if(paramName=="rangePosy") rangePosy = std::stoi(paramStr);
 					else if(paramName=="scanYaw") scanYaw = std::stoi(paramStr);
 					else if(paramName=="scanPitch") scanPitch = std::stoi(paramStr);
+					else if(paramName=="yawLimit") yawLimit = std::stoi(paramStr);
 					else if(paramName=="threshold") gthreshold = std::stof(paramStr);
 					else if(paramName=="leftDirect") leftDirect = std::stoi(paramStr);
 					else if(paramName=="upDirect") upDirect = std::stoi(paramStr);
 					else if(paramName=="yawInitPos") yawInitPos = std::stoi(paramStr);
 					else if(paramName=="pitchInitPos") pitchInitPos = std::stoi(paramStr);
-					else if(paramName=="distinct") distinct = std::stof(paramStr);
+					else if(paramName=="distinct"){
+						// distinct = std::stof(paramStr);
+						for(int j=0;i<paramstr.size();j++){
+							if(paramStr[j]==',' || paramStr[j]=='\n'){
+								float point = paramstr.substr(0,j);
+								distinct.push_back(point);
+							}
+						}
+					}
 					else if(paramName=="modbusIP") modbusIP = paramStr;
 					else if(paramName=="modbusPORT") modbusPORT = std::stoi(paramStr);
 					else if(paramName=="flipFlag") flipFlag = (bool)std::stoi(paramStr);
@@ -95,6 +107,8 @@ void mainSystem::run() {
 	if(rstOrNot) controller->resetPos(yawInitPos, pitchInitPos);
 	while(v.isOpened()){
 		checkModbus();
+		// checkTcp();
+		loseTarget();
 		
 		v.read(frame);
 		if(flipFlag) flip(frame, frame, -1);
@@ -151,6 +165,7 @@ void mainSystem::run() {
 		//printf("key:%d\n", key);
 		if(key==27){
 			modbuser->modbusDisConnect();
+			tcper->disconnectServer();
 			break;
 		}
 		else if(key==115){
@@ -180,7 +195,7 @@ void mainSystem::run() {
 			controller->stopMotor_56();
 		}
 		else if(key==114){
-			controller->resetPos(yawInitPos, pitchInitPos);
+			controller->rstZeroYaw();
 		}
 	}
 }
@@ -193,6 +208,24 @@ void mainSystem::checkModbus(){
 	}
 	else modbusReconnect = ++modbusReconnect%21;
 	if(modbusReconnect==20) modbusTcpStatus = modbuser->modbusConnect();
+}
+
+void mainSystem::checkTcp(){
+	if(tcpStatus){
+		tcpReconnect = 0;
+	}
+	else tcpReconnect = ++tcpReconnect%21;
+	if(tcpReconnect==20) tcpStatus = tcper->connectServer();
+}
+
+void mainSystem::loseTarget(){
+	if(scanOrTrace==-1) return;
+	scanOrTrace = --scanOrTrace<0?0:scanOrTrace;
+	if(scanOrTrace==0) {
+		controller->rstZeroYaw();
+		direct_56 = scanYaw/4;;
+		direct_2324 = 0;
+	}
 }
 
 bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& uv){
@@ -229,7 +262,8 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 			return false;
 		}
 	}
-	
+	scanOrTrace+=20;
+
 	//HIGH is left, LOW is right
 	if(traceObject.diff_cx<-rangePosx) controller->rotateMotor_56(leftDirect);
 	else if(traceObject.diff_cx>rangePosx) controller->rotateMotor_56(rightDirect);
@@ -254,13 +288,25 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 
 
 void mainSystem::cameraScan(){
+	scanOrTrace = -1;//todo:可能使定位更丝滑
+
 	direct_56 = ++direct_56%(scanYaw);
 	direct_2324 = ++direct_2324%(scanPitch);
+	// if(controller->inLimit()==-1) controller->rotateMotor_56(rightDirect);
+	// else if(controller->inLimit()==1) controller->rotateMotor_56(leftDirect);
+	// else controller->rotateMotor_56(rightDirect);
 	if(direct_56>scanYaw/2) controller->rotateMotor_56(rightDirect);
 	else controller->rotateMotor_56(leftDirect);
 	
 	if(direct_2324>scanPitch/2) controller->rotateMotor_2324(upDirect);
 	else controller->rotateMotor_2324(downDirect);
+
+
+	
+	// if(controller->rstZeroYawOr){
+	// 	direct_56 = scanYaw/4;;
+	// 	direct_2324 = 0;
+	// }
 	return;
 }
 
@@ -283,10 +329,13 @@ void mainSystem::upAndDownTrigger(int randomCurrent){
 
 bool mainSystem::modbusTransfer(){
 	uint8_t M_BIT1 = 0x00; 
-	if(currentPos>distinct) M_BIT1=0x01;
-	else if(currentPos<-distinct) M_BIT1=0x03;
-	else M_BIT1=0x02;
-	
+	// if(currentPos>distinct) M_BIT1=0x01;
+	// else if(currentPos<-distinct) M_BIT1=0x03;
+	// else M_BIT1=0x02;
+	for(int i=0;i<distinct.size()-1;i++){
+		if(currentPos>distinct[i] && currentPos<distinct[i+1]) M_BIT1 = i+1;
+	}
+
 	uint8_t M_BIT2 = 0x00;
 	if(fireStatus==1) M_BIT2=0x01;
 	else if(fireStatus==2) M_BIT2=0x02;
@@ -296,6 +345,9 @@ bool mainSystem::modbusTransfer(){
 	
 	uint8_t M_BITS[] = {M_BIT1,M_BIT2, M_BIT3};
 	return modbuser->writeBits(M_BITS, 0x18);
+}
+bool mainSystem::tcpTransfer(){
+
 }
 
 void mainSystem::obtainPos(){
