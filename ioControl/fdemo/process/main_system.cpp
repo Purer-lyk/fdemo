@@ -27,14 +27,17 @@ upDirect(1),
 yawInitPos(5000),
 pitchInitPos(12000),
 device(0),
-scanOrTrace(0)
+scanOrTrace(0),
+modbusInterval(0),
+tcpInterval(0)
 {
 	readParams();
 	direct_56 = scanYaw/4;
 	direct_2324 = 0;
 	detector = new paddleDetector(model_file, imgLight, ycOffset, gthreshold);
-	controller = new WiringControl(leftDirect, upDirect);
+	controller = new WiringControl(leftDirect, upDirect, yawLimit);
 	modbuser = new modbusClient(modbusIP, modbusPORT);
+	tcper = new tcpClient(modbusIP, modbusPORT);
 
 	auto now = std::chrono::system_clock::now();
 	auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
@@ -72,9 +75,9 @@ void mainSystem::readParams(){
 					else if(paramName=="pitchInitPos") pitchInitPos = std::stoi(paramStr);
 					else if(paramName=="distinct"){
 						// distinct = std::stof(paramStr);
-						for(int j=0;i<paramstr.size();j++){
+						for(int j=0;j<paramStr.size();j++){
 							if(paramStr[j]==',' || paramStr[j]=='\n'){
-								float point = paramstr.substr(0,j);
+								float point = std::stof(paramStr.substr(0,j));
 								distinct.push_back(point);
 							}
 						}
@@ -109,6 +112,8 @@ void mainSystem::run() {
 		checkModbus();
 		// checkTcp();
 		loseTarget();
+		controller->temprateControl();
+		// printf("scanOrTrace:%d\n",scanOrTrace);
 		
 		v.read(frame);
 		if(flipFlag) flip(frame, frame, -1);
@@ -128,6 +133,7 @@ void mainSystem::run() {
 		judgeStatus(uvOutput, smokeOutput, ppOutput);
 		if(ppOutput && uvOutput==HIGH) {
 			upAndDownTrigger(dist(eng));
+			//scanOrTrace+=20;
 			//unblockDelay=unblockDelay>0?unblockDelay:1;
 		}
 		/*if(unblockDelay>0) unblockDelay++;
@@ -150,7 +156,11 @@ void mainSystem::run() {
 		// 	fireStatus = 0;
 		// 	controller->unTrigger();
 		// }
-		if(modbusTcpStatus) modbusTcpStatus = modbusTransfer();
+		modbusInterval = ++modbusInterval%21;
+		if(modbusTcpStatus && modbusInterval==20) modbusTcpStatus = modbusTransfer();
+		
+		tcpInterval = ++tcpInterval%21;
+		if(tcpStatus && tcpInterval==20) tcpStatus = tcpTransfer();
 		//imshow("origin", frame);
 		imshow("result",dst);
 		
@@ -261,8 +271,9 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 			cameraScan();
 			return false;
 		}
+		else return false;
 	}
-	scanOrTrace+=20;
+	scanOrTrace+=5;
 
 	//HIGH is left, LOW is right
 	if(traceObject.diff_cx<-rangePosx) controller->rotateMotor_56(leftDirect);
@@ -347,7 +358,23 @@ bool mainSystem::modbusTransfer(){
 	return modbuser->writeBits(M_BITS, 0x18);
 }
 bool mainSystem::tcpTransfer(){
+	uint8_t M_BIT1 = 0x00; 
+	// if(currentPos>distinct) M_BIT1=0x01;
+	// else if(currentPos<-distinct) M_BIT1=0x03;
+	// else M_BIT1=0x02;
+	for(int i=0;i<distinct.size()-1;i++){
+		if(currentPos>distinct[i] && currentPos<distinct[i+1]) M_BIT1 = i+1;
+	}
 
+	uint8_t M_BIT2 = 0x00;
+	if(fireStatus==1) M_BIT2=0x01;
+	else if(fireStatus==2) M_BIT2=0x02;
+	else if(fireStatus==3) M_BIT2=0x03;
+	
+	uint8_t M_BIT3 = device;
+	
+	uint8_t M_BITS[] = {M_BIT1,M_BIT2, M_BIT3};
+	return tcper->writeBits(M_BITS, 0x03);
 }
 
 void mainSystem::obtainPos(){

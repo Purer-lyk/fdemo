@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 
 WiringControl::WiringControl(int leftDirect, int upDirect, int yawLi):
 direct_56(0),
@@ -44,6 +45,7 @@ void WiringControl::readParams(){
 					else if(paramName=="UV") UV = std::stoi(paramStr);
 					else if(paramName=="SMOKE") SMOKE = std::stoi(paramStr);
 					else if(paramName=="SMOKE_") SMOKE_ = std::stoi(paramStr);
+					else if(paramName=="TEMPERATE") TEMPERATE = std::stoi(paramStr);
 				}
 			}
 		}
@@ -85,6 +87,9 @@ bool WiringControl::inOpen() {
 	pullUpDnControl(SMOKE, PUD_UP);
 	pinMode(SMOKE_, OUTPUT);
 	digitalWrite(SMOKE_, LOW);
+	
+	pinMode(TEMPERATE, OUTPUT);
+	digitalWrite(TEMPERATE, HIGH);
 	
 	//printf("in\n");
 
@@ -243,7 +248,7 @@ int WiringControl::readUV(){
 
 double WiringControl::getPosition(){
 	//printf("timsPos:%lf\n", timePos);
-	return timePos;
+	return timePos56;
 }
 
 bool WiringControl::resetPos(int yawInit=5000, int pitchInit=12000){
@@ -273,7 +278,7 @@ bool WiringControl::resetPos(int yawInit=5000, int pitchInit=12000){
 	delay(pitchInit);
 	softPwmWrite(UAD_PUL, 0);
 	
-	timePos = 0;
+	timePos56 = 0;
 	digitalWrite(LAR_EN, HIGH);//disable
 	digitalWrite(UAD_EN, HIGH);//disable
 	return true;
@@ -301,19 +306,39 @@ void WiringControl::rstZeroYaw(){
 	// while(abs(timPos)>=1){
 	// 	rotateMotor_56(direct56);
 	// }
-	if(timePos>=1){
+	if(timePos56>=1){
 		rotateMotor_56(leftFlag);
 	}
-	else if(timePos<=-1){
+	else if(timePos56<=-1){
 		rotateMotor_56(rightFlag);
 	}
-	stopMotor_56();
+	else stopMotor_56();
 }
 
 int WiringControl::inLimit(){
-	if(timePos<=-yawLimit) return -1;
-	else if(timePos>=yawLimit) return 1;
+	if(timePos56<=-yawLimit) return -1;
+	else if(timePos56>=yawLimit) return 1;
 	else return 0;
+}
+
+bool WiringControl::temprateControl(){
+	ifstream temp_file("/sys/class/thermal/thermal_zone0/temp");
+	string temp_str;
+	float tempTmp = 0;
+	if (temp_file.is_open()) {
+		std::getline(temp_file, temp_str);
+		temp_file.close();
+		try {
+			tempTmp = std::stof(temp_str) / 1000.0;
+		} catch (const std::invalid_argument& e) {
+			std::cerr << "Error converting temperature string to float: " << e.what() << std::endl;
+		}
+		if(tempTmp>50) digitalWrite(TEMPERATE, HIGH);
+		else digitalWrite(TEMPERATE, LOW);
+	} else {
+		std::cerr << "Unable to open temperature file" << std::end;
+	}
+	return true;
 }
 
 

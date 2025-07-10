@@ -9,6 +9,7 @@
 #include <chrono>
 #include <vector>
 
+
 using namespace cv;
 
 class mainSystem{
@@ -27,6 +28,8 @@ private:
 	int tcpReconnect;
 	bool modbusTcpStatus;
 	bool tcpStatus;
+	int modbusInterval;
+	int tcpInterval;
 	
 	double currentPos;
 	int fireStatus;//0-no,1-small,2-middle,3-big

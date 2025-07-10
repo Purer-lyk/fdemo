@@ -7,6 +7,7 @@
 #include <softPwm.h>
 #include <chrono>
 
+
 using seconds_duration = std::chrono::duration<double>;
 
 class WiringControl{
@@ -25,6 +26,7 @@ public:
 	bool startMotor_2324();
 	bool onTrigger();
 	bool unTrigger();
+	bool temprateControl();
 	int readUV();
 	double getPosition();
 	bool resetPos(int yawInit, int pitchInit);
@@ -48,6 +50,7 @@ private:
 	uint8_t UV;
 	uint8_t SMOKE;
 	uint8_t SMOKE_;
+	uint8_t TEMPERATE;
 
 	int fd;
 	int direct_56;
