@@ -41,7 +41,7 @@ tcpInterval(0)
 
 	auto now = std::chrono::system_clock::now();
 	auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
-	rstTick = hours.count();
+	// rstTick = hours.count();
 
 	controller->inOpen();
 	controller->unTrigger();
@@ -165,10 +165,10 @@ void mainSystem::run() {
 		imshow("result",dst);
 		
 		// ontime reset
-		auto now = std::chrono::system_clock::now();
-		auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
-		if(hours.count()-rstTick==1) controller->resetPos(yawInitPos, pitchInitPos);
-		rstTick = hours.count();
+		// auto now = std::chrono::system_clock::now();
+		// auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
+		// if(hours.count()-rstTick==1) controller->resetPos(yawInitPos, pitchInitPos);
+		// rstTick = hours.count();
 		
 		// keyboard
 		int key = waitKey(1);
@@ -273,7 +273,6 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 		}
 		else return false;
 	}
-	scanOrTrace+=5;
 
 	//HIGH is left, LOW is right
 	if(traceObject.diff_cx<-rangePosx) controller->rotateMotor_56(leftDirect);
@@ -303,7 +302,7 @@ void mainSystem::cameraScan(){
 
 	direct_56 = ++direct_56%(scanYaw);
 	direct_2324 = ++direct_2324%(scanPitch);
-	// if(controller->inLimit()==-1) controller->rotateMotor_56(rightDirect);
+	if(controller->inLimit()==-1) controller->rotateMotor_56(rightDirect);
 	// else if(controller->inLimit()==1) controller->rotateMotor_56(leftDirect);
 	// else controller->rotateMotor_56(rightDirect);
 	if(direct_56>scanYaw/2) controller->rotateMotor_56(rightDirect);
@@ -312,8 +311,6 @@ void mainSystem::cameraScan(){
 	if(direct_2324>scanPitch/2) controller->rotateMotor_2324(upDirect);
 	else controller->rotateMotor_2324(downDirect);
 
-
-	
 	// if(controller->rstZeroYawOr){
 	// 	direct_56 = scanYaw/4;;
 	// 	direct_2324 = 0;
@@ -357,6 +354,7 @@ bool mainSystem::modbusTransfer(){
 	uint8_t M_BITS[] = {M_BIT1,M_BIT2, M_BIT3};
 	return modbuser->writeBits(M_BITS, 0x18);
 }
+
 bool mainSystem::tcpTransfer(){
 	uint8_t M_BIT1 = 0x00; 
 	// if(currentPos>distinct) M_BIT1=0x01;

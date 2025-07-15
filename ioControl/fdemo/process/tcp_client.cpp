@@ -46,6 +46,6 @@ bool tcpClient::writeBits(const uint8_t *M_BITS, uint8_t CHAR_SIZE){
 	for(int i=0;i<CHAR_SIZE;i++){
 		buf[i+3] = M_BITS[i];
 	}
-	send(sockfd, M_BITS,SEND_SIZE,0);
+	send(sockfd, buf, SEND_SIZE, 0);
 	return true;
 }
