@@ -21,7 +21,6 @@ public:
 private:
 	int srcW, srcH;
 	int rangePosx, rangePosy;
-	int direct_56, direct_2324;
 	int accumulateTrace;
 	
 	int modbusReconnect;
@@ -34,14 +33,14 @@ private:
 	double currentPos;
 	int fireStatus;//0-no,1-small,2-middle,3-big
 	int triggerCount;
-	int rstTick;
 	int scanOrTrace;//0-nothing,1-scaning,2-tracing
+	int scanUD, scanLR;
+	bool lastTrigger;
 	
 	bool rstOrNot;
 	double imgLight;
 	int ycOffset;
-	int scanYaw, scanPitch;
-	int yawLimit;
+	int yawLimit, pitchLimit;
 	float gthreshold;
 	int leftDirect, upDirect, rightDirect, downDirect;
 	int yawInitPos, pitchInitPos;

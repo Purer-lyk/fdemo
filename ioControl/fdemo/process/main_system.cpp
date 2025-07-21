@@ -21,6 +21,7 @@ rstOrNot(false),
 imgLight(60.0),
 ycOffset(20),
 yawLimit(10),
+pitchLimit(10),
 gthreshold(0.6),
 leftDirect(1),
 upDirect(1),
@@ -32,8 +33,8 @@ modbusInterval(0),
 tcpInterval(0)
 {
 	readParams();
-	direct_56 = scanYaw/4;
-	direct_2324 = 0;
+	scanLR = rightDirect;
+	scanUD = upDirect;
 	detector = new paddleDetector(model_file, imgLight, ycOffset, gthreshold);
 	controller = new WiringControl(leftDirect, upDirect, yawLimit);
 	modbuser = new modbusClient(modbusIP, modbusPORT);
@@ -41,7 +42,6 @@ tcpInterval(0)
 
 	auto now = std::chrono::system_clock::now();
 	auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
-	// rstTick = hours.count();
 
 	controller->inOpen();
 	controller->unTrigger();
@@ -65,8 +65,6 @@ void mainSystem::readParams(){
 					else if(paramName=="ycOffset") ycOffset = std::stoi(paramStr);
 					else if(paramName=="rangePosx") rangePosx = std::stoi(paramStr);
 					else if(paramName=="rangePosy") rangePosy = std::stoi(paramStr);
-					else if(paramName=="scanYaw") scanYaw = std::stoi(paramStr);
-					else if(paramName=="scanPitch") scanPitch = std::stoi(paramStr);
 					else if(paramName=="yawLimit") yawLimit = std::stoi(paramStr);
 					else if(paramName=="threshold") gthreshold = std::stof(paramStr);
 					else if(paramName=="leftDirect") leftDirect = std::stoi(paramStr);
@@ -115,60 +113,60 @@ void mainSystem::run() {
 		controller->temprateControl();
 		// printf("scanOrTrace:%d\n",scanOrTrace);
 		
-		v.read(frame);
-		if(flipFlag) flip(frame, frame, -1);
-		if(frame.empty())break;
-		srcW = frame.cols;
-		srcH = frame.rows;
-		
-		// nerual network
-		objs = detector->RunModel(frame, dst);
-		
 		// Tracing and UV then Trigger
 		int uvOutput = controller->readUV();
 		int smokeOutput = controller->readSmoke();
-		//uvOutput=HIGH;
-		bool ppOutput = feedbackControlpp(objs, uvOutput);
-		obtainPos();
-		judgeStatus(uvOutput, smokeOutput, ppOutput);
-		if(ppOutput && uvOutput==HIGH) {
-			upAndDownTrigger(dist(eng));
-			//scanOrTrace+=20;
-			//unblockDelay=unblockDelay>0?unblockDelay:1;
-		}
-		/*if(unblockDelay>0) unblockDelay++;
-		if(unblockDelay==50*60){
-			controller->unTrigger();
-			unblockDelay=0;
-			lastTrace = Object();
-		}*/
-		else if(ppOutput && uvOutput==LOW){
-			lastTrace = Object();
-		}
-		else if(uvOutput==LOW){
-			controller->unTrigger();
-		}
-		// else if(uvOutput==LOW && smokeOutput==HIGH){
-		// 	fireStatus = 1;
-		// 	controller->onTrigger();
+		bool ppOutput = false;
+		// uvOutput=HIGH;
+		// bool ppOutput = feedbackControlpp(objs, uvOutput);
+
+		// if(ppOutput && uvOutput==HIGH) {
+		// 	upAndDownTrigger(dist(eng));
 		// }
-		// else if(uvOutput==LOW && smokeOutput==LOW){
-		// 	fireStatus = 0;
+		// else if(ppOutput && uvOutput==LOW){
+		// 	lastTrace = Object();
+		// }
+		// else if(uvOutput==LOW){
 		// 	controller->unTrigger();
 		// }
+
+		if(uvOutput=HIGH){
+			v.read(frame);
+			if(flipFlag) flip(frame, frame, -1);
+			if(frame.empty()) {
+				printf("camera error!");
+				break;
+			}
+			srcW = frame.cols;
+			srcH = frame.rows;
+			
+			// nerual network
+			objs = detector->RunModel(frame, dst);
+
+			ppOutput = feedbackControlpp(objs, uvOutput);
+			if(ppOutput){
+				scanOrTrace+=5;
+				upAndDownTrigger(dist(eng));
+			}
+			else{
+				scanOrTrace+=3;
+				cameraScan();
+			}
+		}
+		else{
+			if(lastTrigger) controller->unTrigger();
+		}
+
+		obtainPos();
+		judgeStatus(uvOutput, smokeOutput, ppOutput);
+
 		modbusInterval = ++modbusInterval%21;
 		if(modbusTcpStatus && modbusInterval==20) modbusTcpStatus = modbusTransfer();
-		
 		tcpInterval = ++tcpInterval%21;
 		if(tcpStatus && tcpInterval==20) tcpStatus = tcpTransfer();
+
 		//imshow("origin", frame);
 		imshow("result",dst);
-		
-		// ontime reset
-		// auto now = std::chrono::system_clock::now();
-		// auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
-		// if(hours.count()-rstTick==1) controller->resetPos(yawInitPos, pitchInitPos);
-		// rstTick = hours.count();
 		
 		// keyboard
 		int key = waitKey(1);
@@ -228,16 +226,6 @@ void mainSystem::checkTcp(){
 	if(tcpReconnect==20) tcpStatus = tcper->connectServer();
 }
 
-void mainSystem::loseTarget(){
-	if(scanOrTrace==-1) return;
-	scanOrTrace = --scanOrTrace<0?0:scanOrTrace;
-	if(scanOrTrace==0) {
-		controller->rstZeroYaw();
-		direct_56 = scanYaw/4;;
-		direct_2324 = 0;
-	}
-}
-
 bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& uv){
 	controller->limitIO3();
 	controller->limitIO4();
@@ -267,21 +255,21 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 			if(abs(ldy)<rangePosy) traceObject.diff_cy = ldy;
 			else traceObject.diff_cy = ldy>0?ldy-rangePosy:ldy+rangePosy;
 		}
-		else if(uv==HIGH){
-			cameraScan();
-			return false;
-		}
+		// else if(uv==HIGH){
+		// 	cameraScan();
+		// 	return false;
+		// }
 		else return false;
 	}
 
-	//HIGH is left, LOW is right
-	if(traceObject.diff_cx<-rangePosx) controller->rotateMotor_56(leftDirect);
-	else if(traceObject.diff_cx>rangePosx) controller->rotateMotor_56(rightDirect);
+	//HIGH is left, LOW is right, 注意diff是跟踪点减中心点
+	if(traceObject.diff_cx<-rangePosx) controller->rotateMotor_56(rightDirect);
+	else if(traceObject.diff_cx>rangePosx) controller->rotateMotor_56(leftDirect);
 	else if(abs(traceObject.diff_cx)<rangePosx) controller->stopMotor_56();
 	
 	//HIGH is up, LOW is down
-	if(traceObject.diff_cy<-rangePosy) controller->rotateMotor_2324(upDirect);
-	else if(traceObject.diff_cy>rangePosy) controller->rotateMotor_2324(downDirect);
+	if(traceObject.diff_cy<-rangePosy) controller->rotateMotor_2324(downDirect);
+	else if(traceObject.diff_cy>rangePosy) controller->rotateMotor_2324(upDirect);
 	else if(abs(traceObject.diff_cy)<rangePosy) controller->stopMotor_2324();
 
 	lastTrace = traceObject;
@@ -296,25 +284,34 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 	return false;
 }
 
+void mainSystem::loseTarget(){
+	scanOrTrace = --scanOrTrace<0?0:scanOrTrace;
+	if(scanOrTrace==1) {
+		controller->resetPos();
+		scanLR = rightDirect;
+		scanUD = upDirect;
+	}
+}
 
 void mainSystem::cameraScan(){
-	scanOrTrace = -1;//todo:可能使定位更丝滑
+	//在限制内就简单的rotate
+	//不在限制就反转方向再rotate
+	if(controller->inLimit56()){
+		controller->rotateMotor_56(scanLR);
+	}
+	else{
+		scanLR = !scanLR;
+		controller->rotateMotor_56(scanLR);
+	}
 
-	direct_56 = ++direct_56%(scanYaw);
-	direct_2324 = ++direct_2324%(scanPitch);
-	if(controller->inLimit()==-1) controller->rotateMotor_56(rightDirect);
-	// else if(controller->inLimit()==1) controller->rotateMotor_56(leftDirect);
-	// else controller->rotateMotor_56(rightDirect);
-	if(direct_56>scanYaw/2) controller->rotateMotor_56(rightDirect);
-	else controller->rotateMotor_56(leftDirect);
-	
-	if(direct_2324>scanPitch/2) controller->rotateMotor_2324(upDirect);
-	else controller->rotateMotor_2324(downDirect);
+	if(controller->inLimit2324()){
+		controller->rotateMotor_2324(scanUD);
+	}
+	else{
+		scanUD = !scanUD;
+		controller->rotateMotor_2324(scanUD);
+	}
 
-	// if(controller->rstZeroYawOr){
-	// 	direct_56 = scanYaw/4;;
-	// 	direct_2324 = 0;
-	// }
 	return;
 }
 
@@ -330,9 +327,10 @@ void mainSystem::upAndDownTrigger(int randomCurrent){
 	
 	controller->onTrigger();
 	controller->rotateMotor_2324(randomCurrent);
-	delay(500);
+	delay(1000);
 	controller->rotateMotor_2324(!randomCurrent);
-	delay(500);
+	delay(1000);
+	lastTrigger = true;
 }
 
 bool mainSystem::modbusTransfer(){

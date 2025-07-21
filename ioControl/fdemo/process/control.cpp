@@ -4,17 +4,20 @@
 #include <string>
 #include <sstream>
 
-WiringControl::WiringControl(int leftDirect, int upDirect, int yawLi):
+WiringControl::WiringControl(int leftDirect, int upDirect, int yawLi, int pitchLi):
 direct_56(0),
 direct_2324(0),
 timePos56(0),
+timePos2324(0),
 startFlag56(0),
+startFlag2324(0),
 smoking(0),
 leftFlag(leftDirect),
 rightFlag(!leftDirect),
 upFlag(upDirect),
 downFlag(!upDirect),
-yawLimit(yawLi)
+yawLimit(yawLi),
+pitchLimit(pitchLi)
 {
 	readParams();
 }
@@ -96,6 +99,94 @@ bool WiringControl::inOpen() {
 	return true;
 }
 
+bool WiringControl::startMotor_56(){
+	digitalWrite(LAR_EN, LOW);//enable
+	return true;
+}
+
+bool WiringControl::startMotor_2324(){
+	digitalWrite(UAD_EN, LOW);//enable
+	return true;
+}
+
+//left and right halter, low is right, right is plus; high is left, left is minus
+bool WiringControl::stopMotor_56(){
+	if(startFlag56){
+		auto tmp = std::chrono::high_resolution_clock::now();
+		double duration = seconds_duration(tmp-tickPoint56).count();
+		if(direct_56==leftFlag) timePos56-=duration;
+		else timePos56+=duration; 
+		startFlag56=0;
+	}
+	softPwmWrite(LAR_PUL, 0);
+	digitalWrite(LAR_EN, HIGH);//disable
+	direct_56=0;
+	return true;
+}
+
+//up and down halter, low is down, high is up
+bool WiringControl::stopMotor_2324(){
+	if(startFlag2324){
+		auto tmp = std::chrono::high_resolution_clock::now();
+		double duration = seconds_duration(tmp-tickPoint2324).count();
+		if(direct_2324==leftFlag) timePos2324-=duration;
+		else timePos2324+=duration;
+		startFlag2324=0;
+	}
+	softPwmWrite(UAD_PUL, 0);
+	digitalWrite(UAD_EN, HIGH);//disable22
+	direct_2324=0;
+	return true;
+}
+
+//left and right controller
+bool WiringControl::rotateMotor_56(int direct){
+	direct_56 = direct;
+	startMotor_56();
+	//首先设置正反转,HIGH表示left,LOW表示right
+	digitalWrite(LAR_DIR, direct);
+	
+	//change the value no difference
+	//write until manual stop
+	softPwmWrite(LAR_PUL, 8);
+	auto tmp = std::chrono::high_resolution_clock::now();
+	if(startFlag56==0){
+		startFlag56=1;
+		tickPoint56=tmp;
+	}
+	else{
+		double duration = seconds_duration(tmp-tickPoint56).count();
+		tickPoint56=tmp;
+		if(direct_56==leftFlag) timePos56-=duration;
+		else timePos56+=duration;
+	}
+	return true;
+}
+
+//up and down controller
+bool WiringControl::rotateMotor_2324(int direct){
+	direct_2324 = direct;
+	startMotor_2324();
+	//首先设置正反转,HIGH表示up,LOW表示down
+	digitalWrite(UAD_DIR, direct);
+	
+	//change the value no difference
+	//write until manual stop
+	softPwmWrite(UAD_PUL, 8);
+	auto tmp = std::chrono::high_resolution_clock::now();
+	if(startFlag2324==0){
+		startFlag2324=1;
+		tickPoint2324=tmp;
+	}
+	else{
+		double duration = seconds_duration(tmp-tickPoint2324).count();
+		tickPoint2324=tmp;
+		if(direct_2324==downFlag) timePos2324-=duration;
+		else timePos2324+=duration;
+	}
+	return true;
+}
+
 //left and right limit
 bool WiringControl::limitIO3(){
 	int value = digitalRead(LAR_LIMIT);
@@ -113,7 +204,7 @@ bool WiringControl::limitIO3(){
 		softPwmWrite(LAR_PUL, 8);
 		printf("lr_limit:LOW\n");
 		delay(1000);
-		softPwmWrite(UAD_PUL, 0);
+		softPwmWrite(LAR_PUL, 0);
 		return true;
 	}
 	else{
@@ -148,84 +239,6 @@ bool WiringControl::limitIO4(){
 	return true;
 }
 
-//left and right controller
-bool WiringControl::rotateMotor_56(int direct){
-	direct_56 = direct;
-	startMotor_56();
-	auto tmp = std::chrono::high_resolution_clock::now();
-	if(startFlag56==0){
-		startFlag56=1;
-		tickPoint56=tmp;
-	}
-	else{
-		double duration = seconds_duration(tmp-tickPoint56).count();
-		tickPoint56=tmp;
-		if(direct_56==leftFlag) timePos56-=duration;
-		else timePos56+=duration;
-	}
-
-	// if(abs(timePos)>yawLimit){ todo:不一定用
-	// 	rstZeroYaw();
-	// }
-
-	//首先设置正反转,HIGH表示left,LOW表示right
-	digitalWrite(LAR_DIR, direct);
-	
-	//change the value no difference
-	//write until manual stop
-	softPwmWrite(LAR_PUL, 8);
-
-	return true;
-}
-
-//up and down controller
-bool WiringControl::rotateMotor_2324(int direct){
-	direct_2324 = direct;
-	startMotor_2324();
-	//首先设置正反转,HIGH表示up,LOW表示down
-	digitalWrite(UAD_DIR, direct);
-	
-	//change the value no difference
-	//write until manual stop
-	softPwmWrite(UAD_PUL, 8);
-	
-	return true;
-}
-
-bool WiringControl::startMotor_56(){
-	digitalWrite(LAR_EN, LOW);//enable
-	return true;
-}
-
-bool WiringControl::startMotor_2324(){
-	digitalWrite(UAD_EN, LOW);//enable
-	return true;
-}
-
-//left and right halter, low is right, right is plus; high is left, left is minus
-bool WiringControl::stopMotor_56(){
-	if(startFlag56){
-		auto tmp = std::chrono::high_resolution_clock::now();
-		double duration = seconds_duration(tmp-tickPoint56).count();
-		tickPoint56 = tmp;
-		if(direct_56==leftFlag) timePos56-=duration;
-		else timePos56+=duration; 
-		startFlag56=0;
-	}
-	softPwmWrite(LAR_PUL, 0);
-	digitalWrite(LAR_EN, HIGH);//disable
-	direct_56=0;
-	return true;
-}
-
-//up and down halter, low is down, high is up
-bool WiringControl::stopMotor_2324(){
-	softPwmWrite(UAD_PUL, 0);
-	digitalWrite(UAD_EN, HIGH);//disable222
-	direct_2324=0;
-	return true;
-}
-
 bool WiringControl::onTrigger(){
 	digitalWrite(TRIGGER1, 0);
 	digitalWrite(TRIGGER2, 0);
@@ -246,39 +259,34 @@ int WiringControl::readUV(){
 	return value;
 }
 
-double WiringControl::getPosition(){
+double WiringControl::getPosition56(){
 	//printf("timsPos:%lf\n", timePos);
 	return timePos56;
 }
 
-bool WiringControl::resetPos(int yawInit=5000, int pitchInit=12000){
+double WiringControl::getPosition2324(){
+	return timePos2324;
+}
+
+bool WiringControl::resetPos(){
 	startMotor_56();
 	startMotor_2324();
-	direct_56 = rightFlag;
-	digitalWrite(LAR_DIR, direct_56);
-	softPwmWrite(LAR_PUL, 8);
-	while(!limitIO3()){}
 	direct_56 = leftFlag;
 	digitalWrite(LAR_DIR, direct_56);
 	softPwmWrite(LAR_PUL, 8);
-	delay(yawInit);
-	softPwmWrite(LAR_PUL, 0);
+	while(!limitIO3()){}
 	
-	direct_2324 = upFlag;
+	direct_2324 = downFlag;
 	int IO4Count=0;
 	while(IO4Count<3){
-		direct_2324 = upFlag;
+		direct_2324 = downFlag;
 		digitalWrite(UAD_DIR, direct_2324);
 		softPwmWrite(UAD_PUL, 8);
 		if(limitIO4()) IO4Count++;
 	}
-	direct_2324 = downFlag;
-	digitalWrite(UAD_DIR, direct_2324);
-	softPwmWrite(UAD_PUL, 8);
-	delay(pitchInit);
-	softPwmWrite(UAD_PUL, 0);
 	
 	timePos56 = 0;
+	timePos2324=0;
 	digitalWrite(LAR_EN, HIGH);//disable
 	digitalWrite(UAD_EN, HIGH);//disable
 	return true;
@@ -301,23 +309,36 @@ int WiringControl::readSmoke(){
 	return smokeStatus;
 }
 
-//todo:可能改善yaw轴扫描的问题，pitch轴问题得增加pitch位姿解算
-void WiringControl::rstZeroYaw(){
-	// while(abs(timPos)>=1){
-	// 	rotateMotor_56(direct56);
-	// }
-	if(timePos56>=1){
-		rotateMotor_56(leftFlag);
-	}
-	else if(timePos56<=-1){
-		rotateMotor_56(rightFlag);
-	}
-	else stopMotor_56();
+// void WiringControl::rstZeroYaw(){
+// 	softPwmWrite(UAD_PUL, 0);
+// 	softPwmWrite(LAR_PUL, 0);
+// 	direct_56 = rightFlag;
+// 	digitalWrite(LAR_EN, LOW);
+// 	digitalWrite(LAR_DIR, direct_56);
+// 	softPwmWrite(LAR_PUL, 8);
+// 	while(!limitIO3()){}
+// 	softPwmWrite(LAR_PUL, 0);
+// }
+
+// void WiringControl::rstZeroPitch(){
+// 	softPwmWrite(UAD_PUL, 0);
+// 	softPwmWrite(LAR_PUL, 0);
+// 	direct_2324 = upFlag;
+// 	digitalWrite(LAR_EN, LOW);
+// 	digitalWrite(LAR_DIR, direct_56);
+// 	softPwmWrite(LAR_PUL, 8);
+// 	while(!limitIO3()){}
+// 	softPwmWrite(LAR_PUL, 0);
+// }
+
+//以限位和时间共同限制
+int WiringControl::inLimit56(){
+	if(timePos56<=yawLimit && !limitIO3()) return 1;
+	else return 0;
 }
 
-int WiringControl::inLimit(){
-	if(timePos56<=-yawLimit) return -1;
-	else if(timePos56>=yawLimit) return 1;
+int WiringControl::inLimit2324(){
+	if(timePos2324<=pitchLimit && !limitIO4()) return 1;
 	else return 0;
 }
 

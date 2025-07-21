@@ -106,8 +106,8 @@ std::vector<Object> paddleDetector::detect_object(const float* data,
 			obj.rec = rec_clip;
 			
 			//trace
-			obj.diff_cx = cx-traceCx;
-			obj.diff_cy = cy-traceCy;
+			obj.diff_cx = traceCx-cx;
+			obj.diff_cy = traceCy-cy;
 			
 			if (w > 0 && h > 0 && obj.prob <= 1) {
 				rect_out.push_back(obj);

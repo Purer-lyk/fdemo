@@ -12,7 +12,7 @@ using seconds_duration = std::chrono::duration<double>;
 
 class WiringControl{
 public:
-	WiringControl(int leftDirect, int upDirect, int yawLi);
+	WiringControl(int leftDirect, int upDirect, int yawLi, int pitchLi);
 	~WiringControl();
 
 	bool inOpen();
@@ -28,11 +28,14 @@ public:
 	bool unTrigger();
 	bool temprateControl();
 	int readUV();
-	double getPosition();
-	bool resetPos(int yawInit, int pitchInit);
+	double getPosition56();
+	double getPosition2324();
+	bool resetPos();
 	int readSmoke();
-	void rstZeroYaw();
-	int inLimit();
+	// void rstZeroYaw();
+	// void rstZeroPitch();
+	int inLimit56();
+	int inLimit2324();
 	int smoking;
 	
 
@@ -59,10 +62,15 @@ private:
 	int leftFlag, rightFlag;
 	int upFlag, downFlag;
 	int yawLimit;
+	int pitchLimit;
 
 	int startFlag56;
 	double timePos56;
 	std::chrono::high_resolution_clock::time_point tickPoint56;
+
+	int startFlag2324;
+	double timePos2324;
+	std::chrono::high_resolution_clock::time_point tickPoint2324;
 	
 	void readParams();
 };
