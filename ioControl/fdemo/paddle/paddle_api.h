@@ -17,6 +17,7 @@
  * hardware including ARM, X86, OpenCL and so on.
  */
 
+
 #ifndef PADDLE_LITE_API_H_  // NOLINT
 #define PADDLE_LITE_API_H_
 #include <functional>

@@ -13,6 +13,7 @@ tcpClient::~tcpClient(){
 
 }
 
+
 bool tcpClient::connectServer(){
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family=AF_INET;

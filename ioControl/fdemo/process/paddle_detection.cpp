@@ -1,5 +1,6 @@
 #include "paddle_detection.h"
 
+
 paddleDetector::paddleDetector(std::string model_file, double imgLight, int yco, float thres):
 in_width(320),
 in_height(320),
@@ -31,7 +32,6 @@ void paddleDetector::pre_initial(cv::Mat& img){
 }
 
 std::vector<Object> paddleDetector::RunModel(cv::Mat &in, cv::Mat &img){
-	in.copyTo(img);
 	pre_initial(img);
 	wScale = (float)img.cols/(float)in_width;
 	hScale = (float)img.rows/(float)in_height;

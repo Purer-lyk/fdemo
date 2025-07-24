@@ -4,7 +4,7 @@
 #include <fstream>
 #include <string>
 
-mainSystem::mainSystem(std::string model_file):
+mainSystem::mainSystem():
 srcW(320),
 srcH(320),
 rangePosx(30),
@@ -12,7 +12,8 @@ rangePosy(20),
 accumulateTrace(0),
 modbusReconnect(0),
 tcpReconnect(0),
-currentPos(0),
+currentPos56(0),
+currentPos2324(0),
 modbusTcpStatus(false),
 tcpStatus(false),
 fireStatus(0),
@@ -20,8 +21,8 @@ triggerCount(0),
 rstOrNot(false),
 imgLight(60.0),
 ycOffset(20),
-yawLimit(10),
-pitchLimit(10),
+yawLimit(-5),
+pitchLimit(-5),
 gthreshold(0.6),
 leftDirect(1),
 upDirect(1),
@@ -33,10 +34,10 @@ modbusInterval(0),
 tcpInterval(0)
 {
 	readParams();
-	scanLR = rightDirect;
-	scanUD = upDirect;
-	detector = new paddleDetector(model_file, imgLight, ycOffset, gthreshold);
-	controller = new WiringControl(leftDirect, upDirect, yawLimit);
+	scanLR = leftDirect;
+	scanUD = downDirect;
+	detector = new paddleDetector(modelFile, imgLight, ycOffset, gthreshold);
+	controller = new WiringControl(leftDirect, upDirect, yawLimit, pitchLimit);
 	modbuser = new modbusClient(modbusIP, modbusPORT);
 	tcper = new tcpClient(modbusIP, modbusPORT);
 
@@ -59,24 +60,28 @@ void mainSystem::readParams(){
 			for(int i=0;i<line.size();i++){
 				if(line[i]==':'){
 					paramName = line.substr(0, i);
-					paramStr = line.substr(i+1, line.size()-i-1);
-					if(paramName=="rstOrNot") rstOrNot = (bool)std::stoi(paramStr);
+					paramStr = line.substr(i+1, line.size()-i-2);
+					if(paramName=="modelFile") modelFile = paramStr;
+					else if(paramName=="rstOrNot") rstOrNot = (bool)std::stoi(paramStr);
 					else if(paramName=="imgLight") imgLight = std::stod(paramStr);
 					else if(paramName=="ycOffset") ycOffset = std::stoi(paramStr);
 					else if(paramName=="rangePosx") rangePosx = std::stoi(paramStr);
 					else if(paramName=="rangePosy") rangePosy = std::stoi(paramStr);
 					else if(paramName=="yawLimit") yawLimit = std::stoi(paramStr);
+					else if(paramName=="pitchLimit") pitchLimit = std::stoi(paramStr);
 					else if(paramName=="threshold") gthreshold = std::stof(paramStr);
 					else if(paramName=="leftDirect") leftDirect = std::stoi(paramStr);
 					else if(paramName=="upDirect") upDirect = std::stoi(paramStr);
-					else if(paramName=="yawInitPos") yawInitPos = std::stoi(paramStr);
-					else if(paramName=="pitchInitPos") pitchInitPos = std::stoi(paramStr);
 					else if(paramName=="distinct"){
 						// distinct = std::stof(paramStr);
+						int s=0,e=0;
 						for(int j=0;j<paramStr.size();j++){
-							if(paramStr[j]==',' || paramStr[j]=='\n'){
-								float point = std::stof(paramStr.substr(0,j));
+							if(paramStr[j]=='|' || paramStr[j]=='\n'){
+								e=j;
+								float point = std::stof(paramStr.substr(s,e-s));
 								distinct.push_back(point);
+								printf("pt:%f\n",point);
+								s=j+1;
 							}
 						}
 					}
@@ -105,19 +110,30 @@ void mainSystem::run() {
 	std::uniform_int_distribution<int> dist(0,1);
 	modbusTcpStatus = modbuser->modbusConnect();
 	
-	if(rstOrNot) controller->resetPos(yawInitPos, pitchInitPos);
+	if(rstOrNot) controller->resetPos();
 	while(v.isOpened()){
 		checkModbus();
 		// checkTcp();
 		loseTarget();
 		controller->temprateControl();
-		// printf("scanOrTrace:%d\n",scanOrTrace);
+		controller->limitIO3();
+		controller->limitIO4();
+		
+		v.read(frame);
+		if(flipFlag) flip(frame, frame, -1);
+		if(frame.empty()) {
+			printf("camera error!");
+			break;
+		}
+		srcW = frame.cols;
+		srcH = frame.rows;
+		frame.copyTo(dst);
 		
 		// Tracing and UV then Trigger
 		int uvOutput = controller->readUV();
 		int smokeOutput = controller->readSmoke();
 		bool ppOutput = false;
-		// uvOutput=HIGH;
+		uvOutput=HIGH;
 		// bool ppOutput = feedbackControlpp(objs, uvOutput);
 
 		// if(ppOutput && uvOutput==HIGH) {
@@ -130,16 +146,7 @@ void mainSystem::run() {
 		// 	controller->unTrigger();
 		// }
 
-		if(uvOutput=HIGH){
-			v.read(frame);
-			if(flipFlag) flip(frame, frame, -1);
-			if(frame.empty()) {
-				printf("camera error!");
-				break;
-			}
-			srcW = frame.cols;
-			srcH = frame.rows;
-			
+		if(uvOutput==HIGH){
 			// nerual network
 			objs = detector->RunModel(frame, dst);
 
@@ -202,9 +209,6 @@ void mainSystem::run() {
 			delay(200);
 			controller->stopMotor_56();
 		}
-		else if(key==114){
-			controller->rstZeroYaw();
-		}
 	}
 }
 
@@ -227,8 +231,6 @@ void mainSystem::checkTcp(){
 }
 
 bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& uv){
-	controller->limitIO3();
-	controller->limitIO4();
 	float threshold = gthreshold;
 	//printf("threshold:%f\n", threshold);
 	Object traceObject;
@@ -285,6 +287,7 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 }
 
 void mainSystem::loseTarget(){
+	printf("scanOrTrace:%d\n", scanOrTrace);
 	scanOrTrace = --scanOrTrace<0?0:scanOrTrace;
 	if(scanOrTrace==1) {
 		controller->resetPos();
@@ -294,24 +297,24 @@ void mainSystem::loseTarget(){
 }
 
 void mainSystem::cameraScan(){
+	printf("lr:%d,ud:%d\n",scanLR, scanUD);
 	//在限制内就简单的rotate
 	//不在限制就反转方向再rotate
-	if(controller->inLimit56()){
+	int lrCondition = controller->inLimit56();
+	int udCondition = controller->inLimit2324();
+	if(lrCondition && udCondition){
+		printf("in\n");
 		controller->rotateMotor_56(scanLR);
-	}
-	else{
-		scanLR = !scanLR;
-		controller->rotateMotor_56(scanLR);
-	}
-
-	if(controller->inLimit2324()){
 		controller->rotateMotor_2324(scanUD);
 	}
 	else{
-		scanUD = !scanUD;
+		if(!lrCondition) scanLR = !scanLR;
+		if(!udCondition) scanUD = !scanUD;
+		printf("out\n");
+		controller->rotateMotor_56(scanLR);
 		controller->rotateMotor_2324(scanUD);
+		delay(100);
 	}
-
 	return;
 }
 
@@ -339,7 +342,7 @@ bool mainSystem::modbusTransfer(){
 	// else if(currentPos<-distinct) M_BIT1=0x03;
 	// else M_BIT1=0x02;
 	for(int i=0;i<distinct.size()-1;i++){
-		if(currentPos>distinct[i] && currentPos<distinct[i+1]) M_BIT1 = i+1;
+		if(currentPos56>distinct[i] && currentPos56<distinct[i+1]) M_BIT1 = i+1;
 	}
 
 	uint8_t M_BIT2 = 0x00;
@@ -359,7 +362,7 @@ bool mainSystem::tcpTransfer(){
 	// else if(currentPos<-distinct) M_BIT1=0x03;
 	// else M_BIT1=0x02;
 	for(int i=0;i<distinct.size()-1;i++){
-		if(currentPos>distinct[i] && currentPos<distinct[i+1]) M_BIT1 = i+1;
+		if(currentPos56>distinct[i] && currentPos56<distinct[i+1]) M_BIT1 = i+1;
 	}
 
 	uint8_t M_BIT2 = 0x00;
@@ -374,13 +377,24 @@ bool mainSystem::tcpTransfer(){
 }
 
 void mainSystem::obtainPos(){
-	currentPos = controller->getPosition();
+	currentPos56 = controller->getPosition56();
+	currentPos2324 = controller->getPosition2324();
 	//printf("pos:%lf\n", currentPos);
-	char posText[20];
-	sprintf(posText, "pos:%lf", currentPos);
+	char posText56[20];
+	char posText2324[20];
+	sprintf(posText56, "poslr:%lf", currentPos56);
+	sprintf(posText2324, "posud:%lf", currentPos2324);
 	putText(dst,
-			std::string(posText),
+			std::string(posText56),
 			Point(5,20),
+			FONT_HERSHEY_COMPLEX_SMALL,
+			1.f,
+			cv::Scalar(255, 0, 0),
+			1,
+			cv::LINE_AA);
+	putText(dst,
+			std::string(posText2324),
+			Point(5,40),
 			FONT_HERSHEY_COMPLEX_SMALL,
 			1.f,
 			cv::Scalar(255, 0, 0),

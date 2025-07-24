@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <string>
 
+
 #define BUG_REPORT(_cond, _format, _args...) \
     printf(                                  \
         "\nLine %d: assertion error for '%s': " _format "\n", __LINE__, #_cond, ##_args)

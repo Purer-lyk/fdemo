@@ -7,7 +7,6 @@
 #include <softPwm.h>
 #include <chrono>
 
-
 using seconds_duration = std::chrono::duration<double>;
 
 class WiringControl{
@@ -22,6 +21,8 @@ public:
 	bool rotateMotor_2324(int direct);
 	bool stopMotor_56();
 	bool stopMotor_2324();
+	bool pauseMotor_56();
+	bool pauseMotor_2324();
 	bool startMotor_56();
 	bool startMotor_2324();
 	bool onTrigger();
@@ -54,6 +55,7 @@ private:
 	uint8_t SMOKE;
 	uint8_t SMOKE_;
 	uint8_t TEMPERATE;
+	uint8_t TEMPERATE_;
 
 	int fd;
 	int direct_56;
@@ -71,6 +73,8 @@ private:
 	int startFlag2324;
 	double timePos2324;
 	std::chrono::high_resolution_clock::time_point tickPoint2324;
+	
+	int windCount;
 	
 	void readParams();
 };

@@ -16,6 +16,7 @@
 #include <set>
 #include <string>
 
+
 // Generic helper definitions for shared library support
 #if defined _WIN32 || defined __CYGWIN__
 #define PADDLE_LITE_HELPER_DLL_IMPORT __declspec(dllimport)

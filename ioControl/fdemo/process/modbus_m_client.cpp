@@ -11,6 +11,7 @@ ctx(nullptr)
     ip.erase(ip.size()-1);
 }
 
+
 modbusClient::~modbusClient(){
 	
 }

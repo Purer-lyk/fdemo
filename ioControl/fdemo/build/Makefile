@@ -190,30 +190,6 @@ process/control.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/control.cpp.s
 .PHONY : process/control.cpp.s
 
-process/detection.o: process/detection.cpp.o
-.PHONY : process/detection.o
-
-# target to build an object file
-process/detection.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/detection.cpp.o
-.PHONY : process/detection.cpp.o
-
-process/detection.i: process/detection.cpp.i
-.PHONY : process/detection.i
-
-# target to preprocess a source file
-process/detection.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/detection.cpp.i
-.PHONY : process/detection.cpp.i
-
-process/detection.s: process/detection.cpp.s
-.PHONY : process/detection.s
-
-# target to generate assembly for a file
-process/detection.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/detection.cpp.s
-.PHONY : process/detection.cpp.s
-
 process/main_system.o: process/main_system.cpp.o
 .PHONY : process/main_system.o
 
@@ -286,6 +262,30 @@ process/paddle_detection.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/paddle_detection.cpp.s
 .PHONY : process/paddle_detection.cpp.s
 
+process/tcp_client.o: process/tcp_client.cpp.o
+.PHONY : process/tcp_client.o
+
+# target to build an object file
+process/tcp_client.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/tcp_client.cpp.o
+.PHONY : process/tcp_client.cpp.o
+
+process/tcp_client.i: process/tcp_client.cpp.i
+.PHONY : process/tcp_client.i
+
+# target to preprocess a source file
+process/tcp_client.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/tcp_client.cpp.i
+.PHONY : process/tcp_client.cpp.i
+
+process/tcp_client.s: process/tcp_client.cpp.s
+.PHONY : process/tcp_client.s
+
+# target to generate assembly for a file
+process/tcp_client.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/tcp_client.cpp.s
+.PHONY : process/tcp_client.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -302,9 +302,6 @@ help:
 	@echo "... process/control.o"
 	@echo "... process/control.i"
 	@echo "... process/control.s"
-	@echo "... process/detection.o"
-	@echo "... process/detection.i"
-	@echo "... process/detection.s"
 	@echo "... process/main_system.o"
 	@echo "... process/main_system.i"
 	@echo "... process/main_system.s"
@@ -314,6 +311,9 @@ help:
 	@echo "... process/paddle_detection.o"
 	@echo "... process/paddle_detection.i"
 	@echo "... process/paddle_detection.s"
+	@echo "... process/tcp_client.o"
+	@echo "... process/tcp_client.i"
+	@echo "... process/tcp_client.s"
 .PHONY : help
 
 

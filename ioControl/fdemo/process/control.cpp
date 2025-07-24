@@ -4,6 +4,8 @@
 #include <string>
 #include <sstream>
 
+using namespace std;
+
 WiringControl::WiringControl(int leftDirect, int upDirect, int yawLi, int pitchLi):
 direct_56(0),
 direct_2324(0),
@@ -17,7 +19,8 @@ rightFlag(!leftDirect),
 upFlag(upDirect),
 downFlag(!upDirect),
 yawLimit(yawLi),
-pitchLimit(pitchLi)
+pitchLimit(pitchLi),
+windCount(0)
 {
 	readParams();
 }
@@ -49,6 +52,7 @@ void WiringControl::readParams(){
 					else if(paramName=="SMOKE") SMOKE = std::stoi(paramStr);
 					else if(paramName=="SMOKE_") SMOKE_ = std::stoi(paramStr);
 					else if(paramName=="TEMPERATE") TEMPERATE = std::stoi(paramStr);
+					else if(paramName=="TEMPERATE_") TEMPERATE_ = std::stoi(paramStr);
 				}
 			}
 		}
@@ -92,7 +96,10 @@ bool WiringControl::inOpen() {
 	digitalWrite(SMOKE_, LOW);
 	
 	pinMode(TEMPERATE, OUTPUT);
-	digitalWrite(TEMPERATE, HIGH);
+	digitalWrite(TEMPERATE, LOW);
+	pinMode(TEMPERATE_, OUTPUT);
+	digitalWrite(TEMPERATE_, LOW);
+	
 	
 	//printf("in\n");
 
@@ -136,6 +143,30 @@ bool WiringControl::stopMotor_2324(){
 	softPwmWrite(UAD_PUL, 0);
 	digitalWrite(UAD_EN, HIGH);//disable22
 	direct_2324=0;
+	return true;
+}
+
+bool WiringControl::pauseMotor_56(){
+	if(startFlag56){
+		auto tmp = std::chrono::high_resolution_clock::now();
+		double duration = seconds_duration(tmp-tickPoint56).count();
+		if(direct_56==leftFlag) timePos56-=duration;
+		else timePos56+=duration; 
+		startFlag56=0;
+	}
+	softPwmWrite(LAR_PUL, 0);
+	return true;
+}
+
+bool WiringControl::pauseMotor_2324(){
+	if(startFlag2324){
+		auto tmp = std::chrono::high_resolution_clock::now();
+		double duration = seconds_duration(tmp-tickPoint2324).count();
+		if(direct_2324==leftFlag) timePos2324-=duration;
+		else timePos2324+=duration;
+		startFlag2324=0;
+	}
+	softPwmWrite(UAD_PUL, 0);
 	return true;
 }
 
@@ -196,15 +227,20 @@ bool WiringControl::limitIO3(){
 	}
 	else if(value == LOW){
 		//reach limit, stop another motor and flip direct
-		softPwmWrite(UAD_PUL, 0);
-		softPwmWrite(LAR_PUL, 0);
+		/*softPwmWrite(UAD_PUL, 0);
+		softPwmWrite(LAR_PUL, 0);*/
+		pauseMotor_56();
+		pauseMotor_2324();
 		direct_56 = !direct_56;
-		digitalWrite(LAR_EN, LOW);
+		/*digitalWrite(LAR_EN, LOW);
 		digitalWrite(LAR_DIR, direct_56);
-		softPwmWrite(LAR_PUL, 8);
+		softPwmWrite(LAR_PUL, 8);*/
+		rotateMotor_56(direct_56);
 		printf("lr_limit:LOW\n");
-		delay(1000);
-		softPwmWrite(LAR_PUL, 0);
+		delay(500);
+		//softPwmWrite(LAR_PUL, 0);
+		pauseMotor_56();
+		timePos56=0;
 		return true;
 	}
 	else{
@@ -222,15 +258,20 @@ bool WiringControl::limitIO4(){
 	}
 	else if(value == LOW){
 		//reach limit, stop another motor and flip direct
-		softPwmWrite(UAD_PUL, 0);
-		softPwmWrite(LAR_PUL, 0);
+		/*softPwmWrite(UAD_PUL, 0);
+		softPwmWrite(LAR_PUL, 0);*/
+		pauseMotor_56();
+		pauseMotor_2324();
 		direct_2324 = !direct_2324;
-		digitalWrite(UAD_EN, LOW);
+		/*digitalWrite(UAD_EN, LOW);
 		digitalWrite(UAD_DIR, direct_2324);
-		softPwmWrite(UAD_PUL, 8);
+		softPwmWrite(UAD_PUL, 8);*/
+		rotateMotor_2324(direct_2324);
 		printf("ud_limit:LOW\n");
-		delay(1000);
-		softPwmWrite(UAD_PUL, 0);
+		delay(500);
+		//softPwmWrite(UAD_PUL, 0);
+		pauseMotor_2324();
+		timePos2324=0;
 		return true;
 	}
 	else{
@@ -271,15 +312,15 @@ double WiringControl::getPosition2324(){
 bool WiringControl::resetPos(){
 	startMotor_56();
 	startMotor_2324();
-	direct_56 = leftFlag;
+	direct_56 = rightFlag;
 	digitalWrite(LAR_DIR, direct_56);
 	softPwmWrite(LAR_PUL, 8);
 	while(!limitIO3()){}
 	
-	direct_2324 = downFlag;
+	direct_2324 = upFlag;
 	int IO4Count=0;
 	while(IO4Count<3){
-		direct_2324 = downFlag;
+		direct_2324 = upFlag;
 		digitalWrite(UAD_DIR, direct_2324);
 		softPwmWrite(UAD_PUL, 8);
 		if(limitIO4()) IO4Count++;
@@ -333,12 +374,12 @@ int WiringControl::readSmoke(){
 
 //以限位和时间共同限制
 int WiringControl::inLimit56(){
-	if(timePos56<=yawLimit && !limitIO3()) return 1;
+	if(timePos56>=yawLimit && !limitIO3()) return 1;
 	else return 0;
 }
 
 int WiringControl::inLimit2324(){
-	if(timePos2324<=pitchLimit && !limitIO4()) return 1;
+	if(timePos2324>=pitchLimit && !limitIO4()) return 1;
 	else return 0;
 }
 
@@ -354,10 +395,23 @@ bool WiringControl::temprateControl(){
 		} catch (const std::invalid_argument& e) {
 			std::cerr << "Error converting temperature string to float: " << e.what() << std::endl;
 		}
-		if(tempTmp>50) digitalWrite(TEMPERATE, HIGH);
-		else digitalWrite(TEMPERATE, LOW);
+		printf("temp:%f\n", tempTmp);
+		if(tempTmp>50){
+			digitalWrite(TEMPERATE, HIGH);
+			digitalWrite(TEMPERATE_, HIGH);
+			windCount=5000;
+		}
+		else{
+			if(windCount>0){
+				digitalWrite(TEMPERATE, HIGH);
+				digitalWrite(TEMPERATE_, HIGH);
+				windCount--;
+			}
+			digitalWrite(TEMPERATE, LOW);
+			digitalWrite(TEMPERATE_, LOW);
+		}
 	} else {
-		std::cerr << "Unable to open temperature file" << std::end;
+		std::cerr << "Unable to open temperature file" << std::endl;
 	}
 	return true;
 }

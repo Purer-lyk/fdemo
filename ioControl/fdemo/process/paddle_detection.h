@@ -8,6 +8,7 @@
 #include "opencv2/imgproc.hpp"
 #include "paddle_api.h"
 
+
 using namespace paddle::lite_api;
 
 struct Object {
