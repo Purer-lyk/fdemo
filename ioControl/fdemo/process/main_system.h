@@ -4,6 +4,7 @@
 #include "control.h"
 #include "paddle_detection.h"
 #include "modbus_m_client.h"
+#include "modbus_m_server.h"
 #include "tcp_client.h"
 #include <opencv2/opencv.hpp>
 #include <chrono>
@@ -25,11 +26,16 @@ private:
 	
 	int modbusReconnect;
 	int tcpReconnect;
+	int serverReconnect;
+
 	bool modbusTcpStatus;
 	bool tcpStatus;
+	bool serverStatus;
+
 	int modbusInterval;
 	int tcpInterval;
-	
+	int serverInterval;
+
 	double currentPos56, currentPos2324;
 	int fireStatus;//0-no,1-small,2-middle,3-big
 	int triggerCount;
@@ -57,9 +63,11 @@ private:
 
 	bool modbusTransfer();
 	bool tcpTransfer();
+	bool modbusReply();
 
 	void checkModbus();
 	void checkTcp();
+	void checkServer();
 
 	void obtainPos();
 	void readParams();
@@ -71,6 +79,7 @@ private:
 	WiringControl* controller;
 	paddleDetector* detector;
 	modbusClient* modbuser;
+	modbusServer* server;
 	Object lastTrace;
 	tcpClient* tcper;
 

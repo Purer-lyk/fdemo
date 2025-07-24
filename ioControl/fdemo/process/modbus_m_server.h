@@ -7,7 +7,6 @@
 #include <string>
 
 class modbusServer{
-
 public:
     modbusServer();
     ~modbusServer();
@@ -17,9 +16,12 @@ public:
     bool writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE);
 
 private:
-    modbus_t* ctx;
     int PORT;
     std::string IP;
+
+    int s;
+    modbus_t* ctx;
+    modbus_mapping_t *mbMapping;
 
     const uint16_t UT_BITS_ADDRESS = 0x130;
     const uint16_t UT_BITS_NB = 0x25;

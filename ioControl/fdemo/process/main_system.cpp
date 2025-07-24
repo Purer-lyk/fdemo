@@ -12,10 +12,12 @@ rangePosy(20),
 accumulateTrace(0),
 modbusReconnect(0),
 tcpReconnect(0),
+serverReconnect(0),
 currentPos56(0),
 currentPos2324(0),
 modbusTcpStatus(false),
 tcpStatus(false),
+serverStatus(false),
 fireStatus(0),
 triggerCount(0),
 rstOrNot(false),
@@ -31,7 +33,8 @@ pitchInitPos(12000),
 device(0),
 scanOrTrace(0),
 modbusInterval(0),
-tcpInterval(0)
+tcpInterval(0),
+serverInterval(0)
 {
 	readParams();
 	scanLR = leftDirect;
@@ -40,6 +43,7 @@ tcpInterval(0)
 	controller = new WiringControl(leftDirect, upDirect, yawLimit, pitchLimit);
 	modbuser = new modbusClient(modbusIP, modbusPORT);
 	tcper = new tcpClient(modbusIP, modbusPORT);
+	server = new modbusServer(modbusIP, modbusPORT);
 
 	auto now = std::chrono::system_clock::now();
 	auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
@@ -109,11 +113,13 @@ void mainSystem::run() {
 	std::default_random_engine eng(rd());
 	std::uniform_int_distribution<int> dist(0,1);
 	modbusTcpStatus = modbuser->modbusConnect();
-	
+	serverStatus = server->modbusConnect();
+
 	if(rstOrNot) controller->resetPos();
 	while(v.isOpened()){
-		checkModbus();
+		//checkModbus();
 		// checkTcp();
+		checkServer();
 		loseTarget();
 		controller->temprateControl();
 		controller->limitIO3();
@@ -171,6 +177,8 @@ void mainSystem::run() {
 		if(modbusTcpStatus && modbusInterval==20) modbusTcpStatus = modbusTransfer();
 		tcpInterval = ++tcpInterval%21;
 		if(tcpStatus && tcpInterval==20) tcpStatus = tcpTransfer();
+		serverInterval = ++serverInterval%21;
+		if(serverStatus && serverInterval==20) serverStatus = modbusReply();
 
 		//imshow("origin", frame);
 		imshow("result",dst);
@@ -228,6 +236,14 @@ void mainSystem::checkTcp(){
 	}
 	else tcpReconnect = ++tcpReconnect%21;
 	if(tcpReconnect==20) tcpStatus = tcper->connectServer();
+}
+
+void mainSystem::checkServer(){
+	if(serverStatus){
+		serverReconnect = 0;
+	}
+	else serverReconnect = ++serverReconnect%21;
+	if(serverReconnect==20) serverStatus = server->modbusConnect();
 }
 
 bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& uv){
@@ -374,6 +390,19 @@ bool mainSystem::tcpTransfer(){
 	
 	uint8_t M_BITS[] = {M_BIT1,M_BIT2, M_BIT3};
 	return tcper->writeBits(M_BITS, 0x03);
+}
+
+bool mainSystem::modbusReply(){
+	uint8_t M_BIT1 = 0x00; 
+	// if(currentPos>distinct) M_BIT1=0x01;
+	// else if(currentPos<-distinct) M_BIT1=0x03;
+	// else M_BIT1=0x02;
+	for(int i=0;i<distinct.size()-1;i++){
+		if(currentPos56>distinct[i] && currentPos56<distinct[i+1]) M_BIT1 = i+1;
+	}
+
+	uint8_t M_BITS[] = {M_BIT1};
+	return server->writeBits(M_BITS, 0x01);
 }
 
 void mainSystem::obtainPos(){
