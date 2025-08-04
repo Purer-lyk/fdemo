@@ -8,7 +8,8 @@ threshold(thres),
 traceCx(in_width/2),
 traceCy(in_height/2),
 ycOffset(yco),
-convertLight(imgLight)
+convertLight(imgLight),
+cnt(0)
 {
 	categories.push_back("fire");
 	// 1. Set MobileConfig
@@ -112,6 +113,12 @@ std::vector<Object> paddleDetector::detect_object(const float* data,
 			if (w > 0 && h > 0 && obj.prob <= 1) {
 				rect_out.push_back(obj);
 				cv::rectangle(image, rec_clip, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
+				
+				/*cnt++;
+				char imgName[20];
+				sprintf(imgName, "%d.jpg", cnt);
+				cv::imwrite(imgName, image(rec_clip));*/
+				
 				std::string str_prob = std::to_string(obj.prob);
 				std::string text = std::string(categories[obj.class_id]) + ": " +
 								   str_prob.substr(0, str_prob.find(".") + 4);

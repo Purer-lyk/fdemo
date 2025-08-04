@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 
+
 mainSystem::mainSystem():
 srcW(320),
 srcH(320),
@@ -49,7 +50,7 @@ serverInterval(0)
 	auto hours = std::chrono::duration_cast<std::chrono::hours>(now.time_since_epoch());
 
 	controller->inOpen();
-	controller->unTrigger();
+	unTrigger();
 }
 
 mainSystem::~mainSystem() {}
@@ -139,18 +140,7 @@ void mainSystem::run() {
 		int uvOutput = controller->readUV();
 		int smokeOutput = controller->readSmoke();
 		bool ppOutput = false;
-		uvOutput=HIGH;
-		// bool ppOutput = feedbackControlpp(objs, uvOutput);
-
-		// if(ppOutput && uvOutput==HIGH) {
-		// 	upAndDownTrigger(dist(eng));
-		// }
-		// else if(ppOutput && uvOutput==LOW){
-		// 	lastTrace = Object();
-		// }
-		// else if(uvOutput==LOW){
-		// 	controller->unTrigger();
-		// }
+		//uvOutput=HIGH;
 
 		if(uvOutput==HIGH){
 			// nerual network
@@ -158,16 +148,16 @@ void mainSystem::run() {
 
 			ppOutput = feedbackControlpp(objs, uvOutput);
 			if(ppOutput){
-				scanOrTrace+=5;
 				upAndDownTrigger(dist(eng));
 			}
 			else{
-				scanOrTrace+=3;
-				cameraScan();
+				unTrigger();
 			}
+			scanOrTrace+=12;
 		}
 		else{
-			if(lastTrigger) controller->unTrigger();
+			controller->stopMotor_2324();
+			controller->stopMotor_56();
 		}
 
 		obtainPos();
@@ -268,36 +258,51 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 			int ldy = lastTrace.diff_cy;
 			traceObject.prob = lastTrace.prob;
 			traceObject.rec = lastTrace.rec;
+			
 			if(abs(ldx)<rangePosx) traceObject.diff_cx = ldx;
-			else traceObject.diff_cx = ldx>0?ldx-rangePosx:ldx+rangePosx;
+			else traceObject.diff_cx = ldx>0?ldx-rangePosx/2:ldx+rangePosx/2;
+			
 			if(abs(ldy)<rangePosy) traceObject.diff_cy = ldy;
-			else traceObject.diff_cy = ldy>0?ldy-rangePosy:ldy+rangePosy;
+			else traceObject.diff_cy = ldy>0?ldy-rangePosy/2:ldy+rangePosy/2;
 		}
-		// else if(uv==HIGH){
-		// 	cameraScan();
-		// 	return false;
-		// }
+		else if(uv==HIGH){
+			cameraScan();
+			return false;
+		}
 		else return false;
 	}
 
 	//HIGH is left, LOW is right, 注意diff是跟踪点减中心点
-	if(traceObject.diff_cx<-rangePosx) controller->rotateMotor_56(rightDirect);
-	else if(traceObject.diff_cx>rangePosx) controller->rotateMotor_56(leftDirect);
+	if(traceObject.diff_cx<-rangePosx){
+		if(flipFlag) controller->rotateMotor_56(rightDirect);
+		else controller->rotateMotor_56(leftDirect);
+	}
+	else if(traceObject.diff_cx>rangePosx){
+		if(flipFlag) controller->rotateMotor_56(leftDirect);
+		else controller->rotateMotor_56(rightDirect);
+	}
 	else if(abs(traceObject.diff_cx)<rangePosx) controller->stopMotor_56();
 	
 	//HIGH is up, LOW is down
-	if(traceObject.diff_cy<-rangePosy) controller->rotateMotor_2324(downDirect);
-	else if(traceObject.diff_cy>rangePosy) controller->rotateMotor_2324(upDirect);
+	if(traceObject.diff_cy<-rangePosy){
+		if(flipFlag) controller->rotateMotor_2324(downDirect);
+		else controller->rotateMotor_2324(upDirect);
+	}
+	else if(traceObject.diff_cy>rangePosy){
+		if(flipFlag) controller->rotateMotor_2324(upDirect);
+		else controller->rotateMotor_2324(downDirect);
+	}
 	else if(abs(traceObject.diff_cy)<rangePosy) controller->stopMotor_2324();
 
 	lastTrace = traceObject;
 	if(traceObject.prob>=threshold) {
 		accumulateTrace+=4;
 		if(accumulateTrace>100)accumulateTrace=100;
+		if(accumulateTrace>50) return true;
 	}
 	if(abs(traceObject.diff_cx)<rangePosx && abs(traceObject.diff_cy)<rangePosy){
-		if(accumulateTrace>30)return true;
-		else if(accumulateTrace<10)lastTrace = Object();
+		if(accumulateTrace>40)return true;
+		else if(accumulateTrace<5)lastTrace = Object();
 	}
 	return false;
 }
@@ -305,31 +310,49 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 void mainSystem::loseTarget(){
 	printf("scanOrTrace:%d\n", scanOrTrace);
 	scanOrTrace = --scanOrTrace<0?0:scanOrTrace;
-	if(scanOrTrace==1) {
+	if(scanOrTrace==13) {
+		resetStatus();
 		controller->resetPos();
-		scanLR = rightDirect;
-		scanUD = upDirect;
+		scanLR = leftDirect;
+		scanUD = downDirect;
 	}
+	else if(scanOrTrace>300) scanOrTrace=300;
+}
+
+void mainSystem::resetStatus(){
+	//accumulateTrace = 0;
+	unTrigger();
+	lastTrace = Object();
+	controller->stopMotor_2324();
+	controller->stopMotor_56();
+}
+
+void mainSystem::unTrigger(){
+	controller->unTrigger();
+	lastTrigger = false;
 }
 
 void mainSystem::cameraScan(){
-	printf("lr:%d,ud:%d\n",scanLR, scanUD);
+	//printf("lr:%d,ud:%d\n",scanLR, scanUD);
 	//在限制内就简单的rotate
 	//不在限制就反转方向再rotate
-	int lrCondition = controller->inLimit56();
-	int udCondition = controller->inLimit2324();
-	if(lrCondition && udCondition){
+	int lrCondition = controller->reachLimit56();
+	int udCondition = controller->reachLimit2324();
+	if(!lrCondition && !udCondition){
 		printf("in\n");
 		controller->rotateMotor_56(scanLR);
 		controller->rotateMotor_2324(scanUD);
 	}
 	else{
-		if(!lrCondition) scanLR = !scanLR;
-		if(!udCondition) scanUD = !scanUD;
+		if(lrCondition==1) scanLR = leftDirect;
+		else if(lrCondition==2) scanLR = rightDirect;
+		
+		if(udCondition==1) scanUD = downDirect;
+		else if(udCondition==2) scanUD = upDirect;
 		printf("out\n");
 		controller->rotateMotor_56(scanLR);
 		controller->rotateMotor_2324(scanUD);
-		delay(100);
+		delay(200);
 	}
 	return;
 }
@@ -346,9 +369,9 @@ void mainSystem::upAndDownTrigger(int randomCurrent){
 	
 	controller->onTrigger();
 	controller->rotateMotor_2324(randomCurrent);
-	delay(1000);
+	delay(500);
 	controller->rotateMotor_2324(!randomCurrent);
-	delay(1000);
+	delay(500);
 	lastTrigger = true;
 }
 

@@ -1,1 +1,1 @@
-remember the flip direct when flip the device!!
+all base on flip device direct!!!

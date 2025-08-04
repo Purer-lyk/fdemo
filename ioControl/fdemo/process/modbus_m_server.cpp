@@ -1,4 +1,6 @@
 #include "modbus_m_server.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 modbusServer::modbusServer(std::string _ip, int _port):
 IP(_ip),
@@ -16,7 +18,7 @@ modbusServer::~modbusServer(){
 bool modbusServer::modbusConnect(){
     ctx = modbus_new_tcp(IP.c_str(), PORT);
     if(ctx==nullptr){
-        printf("connect error!");
+        printf("connect error!\n");
         return false;
     }
     modbus_set_debug(ctx, TRUE);
@@ -28,26 +30,24 @@ bool modbusServer::modbusConnect(){
 	// modbus_tcp_accept(mb, &socketMb);
 	
     if(s==-1){
-        printf("listen error!");
+        printf("listen error!\n");
         modbus_free(ctx);
-		ctx = nullptr;
+	ctx = nullptr;
         return false;
     }
     else
-	{
-		// 设置为非阻塞
-		int flags = fcntl(socketMb, F_GETFL, 0);
-		fcntl(socketMb, F_SETFL, flags | O_NONBLOCK);
-	}
+    {
+	// 设置为非阻塞
+	int flags = fcntl(s, F_GETFL, 0);
+	fcntl(s, F_SETFL, flags | O_NONBLOCK);
+    }
 
-	// 设置服务端等待客户端请求超时时间
-	modbus_set_indication_timeout(mb, 3, 0);
+    // 设置服务端等待客户端请求超时时间
+    modbus_set_indication_timeout(ctx, 3, 0);
+    return true;
 }
 
 bool modbusServer::modbusDisConnect(){
-     /* Free the memory */
-    free(tab_rp_bits);
-
     /* Close the connection */
     modbus_close(ctx);
     modbus_free(ctx);
@@ -56,7 +56,7 @@ bool modbusServer::modbusDisConnect(){
 
 bool modbusServer::writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE){
     if(ctx==nullptr){
-        printf("cannot write until connect!")
+        printf("cannot write until connect!!\n");
         return false;
     }
     //MODBUS_TCP_MAX_ADU_LENGTH在标准库里面定义
@@ -72,18 +72,20 @@ bool modbusServer::writeBits(const uint8_t M_BITS[], uint8_t BIT_SIZE){
                                                  
     /* Initialize input values that's can be only done server side. */
     modbus_set_bits_from_bytes(
-        mb_mapping->tab_input_bits, 0, UT_INPUT_BITS_NB, UT_INPUT_BITS_TAB);
+        mbMapping->tab_input_bits, 0, UT_INPUT_BITS_NB, UT_INPUT_BITS_TAB);
 
     /* Initialize values of INPUT REGISTERS */
-    for (i = 0; i < UT_INPUT_REGISTERS_NB; i++) {
-        mb_mapping->tab_input_registers[i] = UT_INPUT_REGISTERS_TAB[i];
+    for (int i = 0; i < UT_INPUT_REGISTERS_NB; i++) {
+        mbMapping->tab_input_registers[i] = UT_INPUT_REGISTERS_TAB[i];
     }
 
     int rc = -1;
     rc = modbus_receive(ctx, query);
     if(rc==-1){
-        printf("receive error!");
+        printf("receive error!\n");
     }
     modbus_reply(ctx, query, rc, mbMapping);
     // rc = modbus_reply(ctx, query, rc, mb_mapping);
+    
+    return true;
 }

@@ -41,6 +41,7 @@ private:
 	int traceCx, traceCy;
 	int ycOffset;
 	int convertLight;
+	int cnt;
 	
 	void pre_initial(cv::Mat& img);
 	void pre_process(const cv::Mat& img, int width, int height, float* data);

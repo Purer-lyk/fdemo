@@ -7,6 +7,8 @@
 #include <softPwm.h>
 #include <chrono>
 
+#define POWER 12
+
 using seconds_duration = std::chrono::duration<double>;
 
 class WiringControl{
@@ -35,8 +37,8 @@ public:
 	int readSmoke();
 	// void rstZeroYaw();
 	// void rstZeroPitch();
-	int inLimit56();
-	int inLimit2324();
+	int reachLimit56();
+	int reachLimit2324();
 	int smoking;
 	
 

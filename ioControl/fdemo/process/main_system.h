@@ -10,7 +10,6 @@
 #include <chrono>
 #include <vector>
 
-
 using namespace cv;
 
 class mainSystem{
@@ -73,6 +72,8 @@ private:
 	void readParams();
 	void judgeStatus(int uvOut, int smokeOut, bool ppOut);
 	void loseTarget();
+	void resetStatus();
+	void unTrigger();
 	
 	Mat frame;
 	Mat dst;

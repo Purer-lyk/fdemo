@@ -22,17 +22,8 @@
             BUG_REPORT(_cond, _format, ##__args); \
         }                                         \
     };
+    
 
-const uint16_t UT_BITS_ADDRESS = 0x130;
-const uint16_t UT_BITS_NB = 0x25;
-const uint8_t UT_BITS_TAB[] = { 0xCD, 0x6B, 0xB2, 0x0E, 0x1B };
-/*const uint16_t UT_BITS_NB = 0x08;
-const uint8_t UT_BITS_TAB[] = { 0x01 };*/
-const uint16_t UT_BITS_ADDRESS_INVALID_REQUEST_LENGTH = UT_BITS_ADDRESS + 2;
-
-const uint16_t UT_INPUT_BITS_ADDRESS = 0x1C4;
-const uint16_t UT_INPUT_BITS_NB = 0x16;
-const uint8_t UT_INPUT_BITS_TAB[] = { 0xAC, 0xDB, 0x35 };
 
 class modbusClient
 {
@@ -55,6 +46,17 @@ private:
     uint32_t old_response_to_usec;
     uint32_t new_response_to_sec;
     uint32_t new_response_to_usec;	
+    
+    const uint16_t UT_BITS_ADDRESS = 0x130;
+    const uint16_t UT_BITS_NB = 0x25;
+    const uint8_t UT_BITS_TAB[5] = { 0xCD, 0x6B, 0xB2, 0x0E, 0x1B };
+    /*const uint16_t UT_BITS_NB = 0x08;
+    const uint8_t UT_BITS_TAB[] = { 0x01 };*/
+    const uint16_t UT_BITS_ADDRESS_INVALID_REQUEST_LENGTH = UT_BITS_ADDRESS + 2;
+
+    const uint16_t UT_INPUT_BITS_ADDRESS = 0x1C4;
+    const uint16_t UT_INPUT_BITS_NB = 0x16;
+    const uint8_t UT_INPUT_BITS_TAB[3] = { 0xAC, 0xDB, 0x35 };
 };
 
 

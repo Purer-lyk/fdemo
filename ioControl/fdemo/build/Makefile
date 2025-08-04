@@ -238,6 +238,30 @@ process/modbus_m_client.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/modbus_m_client.cpp.s
 .PHONY : process/modbus_m_client.cpp.s
 
+process/modbus_m_server.o: process/modbus_m_server.cpp.o
+.PHONY : process/modbus_m_server.o
+
+# target to build an object file
+process/modbus_m_server.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/modbus_m_server.cpp.o
+.PHONY : process/modbus_m_server.cpp.o
+
+process/modbus_m_server.i: process/modbus_m_server.cpp.i
+.PHONY : process/modbus_m_server.i
+
+# target to preprocess a source file
+process/modbus_m_server.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/modbus_m_server.cpp.i
+.PHONY : process/modbus_m_server.cpp.i
+
+process/modbus_m_server.s: process/modbus_m_server.cpp.s
+.PHONY : process/modbus_m_server.s
+
+# target to generate assembly for a file
+process/modbus_m_server.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/workSrc.dir/build.make CMakeFiles/workSrc.dir/process/modbus_m_server.cpp.s
+.PHONY : process/modbus_m_server.cpp.s
+
 process/paddle_detection.o: process/paddle_detection.cpp.o
 .PHONY : process/paddle_detection.o
 
@@ -308,6 +332,9 @@ help:
 	@echo "... process/modbus_m_client.o"
 	@echo "... process/modbus_m_client.i"
 	@echo "... process/modbus_m_client.s"
+	@echo "... process/modbus_m_server.o"
+	@echo "... process/modbus_m_server.i"
+	@echo "... process/modbus_m_server.s"
 	@echo "... process/paddle_detection.o"
 	@echo "... process/paddle_detection.i"
 	@echo "... process/paddle_detection.s"
