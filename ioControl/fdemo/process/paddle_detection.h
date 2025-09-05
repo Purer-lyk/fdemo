@@ -26,11 +26,12 @@ struct Object {
 
 class paddleDetector{
 public:
-	paddleDetector(std::string model_file, double imgLight, int yco, float thres);
+	paddleDetector(std::string model_file, std::string re_file, double imgLight, int yco, float thres, float rethres);
 	~paddleDetector();
-	std::vector<Object> RunModel(cv::Mat &in, cv::Mat &img);
+	std::vector<Object> RunModel(cv::Mat &img);
 	
 	float threshold;
+	float _threshold;
 private:
 	MobileConfig config;
 	std::shared_ptr<PaddlePredictor> predictor;
@@ -41,13 +42,21 @@ private:
 	int traceCx, traceCy;
 	int ycOffset;
 	int convertLight;
-	int cnt;
+	int save_cnt;
+
+	MobileConfig reconfig;
+	std::shared_ptr<PaddlePredictor> repredictor;
+	int re_width;
+	int re_height; 
 	
 	void pre_initial(cv::Mat& img);
 	void pre_process(const cv::Mat& img, int width, int height, float* data);
 	std::vector<Object> detect_object(const float* data, int count, float thresh, cv::Mat& image);
 	void neon_mean_scale(const float* din, float* dout, int size, const std::vector<float> mean, const std::vector<float> scale);
 	
+	bool recognize(cv::Mat& img);
+	void pre_reprocess(const cv::Mat& img, int width, int height, float* data);
+
 };
 
 

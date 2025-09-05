@@ -16,12 +16,15 @@ tcpReconnect(0),
 serverReconnect(0),
 currentPos56(0),
 currentPos2324(0),
+triggerPos56(0),
+triggerPos2324(0),
 modbusTcpStatus(false),
 tcpStatus(false),
 serverStatus(false),
 fireStatus(0),
 triggerCount(0),
 rstOrNot(false),
+uvInit(false),
 imgLight(60.0),
 ycOffset(20),
 yawLimit(-5),
@@ -40,7 +43,7 @@ serverInterval(0)
 	readParams();
 	scanLR = leftDirect;
 	scanUD = downDirect;
-	detector = new paddleDetector(modelFile, imgLight, ycOffset, gthreshold);
+	detector = new paddleDetector(modelFile, reModelFile, imgLight, ycOffset, gthreshold, rethreshold);
 	controller = new WiringControl(leftDirect, upDirect, yawLimit, pitchLimit);
 	modbuser = new modbusClient(modbusIP, modbusPORT);
 	tcper = new tcpClient(modbusIP, modbusPORT);
@@ -67,7 +70,9 @@ void mainSystem::readParams(){
 					paramName = line.substr(0, i);
 					paramStr = line.substr(i+1, line.size()-i-2);
 					if(paramName=="modelFile") modelFile = paramStr;
+					else if(paramName=="reModelFile") reModelFile = paramStr;
 					else if(paramName=="rstOrNot") rstOrNot = (bool)std::stoi(paramStr);
+					else if(paramName=="uvInit") uvInit = (bool)std::stoi(paramStr);
 					else if(paramName=="imgLight") imgLight = std::stod(paramStr);
 					else if(paramName=="ycOffset") ycOffset = std::stoi(paramStr);
 					else if(paramName=="rangePosx") rangePosx = std::stoi(paramStr);
@@ -75,6 +80,7 @@ void mainSystem::readParams(){
 					else if(paramName=="yawLimit") yawLimit = std::stoi(paramStr);
 					else if(paramName=="pitchLimit") pitchLimit = std::stoi(paramStr);
 					else if(paramName=="threshold") gthreshold = std::stof(paramStr);
+					else if(paramName=="rethreshold") rethreshold = std::stof(paramStr);
 					else if(paramName=="leftDirect") leftDirect = std::stoi(paramStr);
 					else if(paramName=="upDirect") upDirect = std::stoi(paramStr);
 					else if(paramName=="distinct"){
@@ -125,6 +131,37 @@ void mainSystem::run() {
 		controller->temprateControl();
 		controller->limitIO3();
 		controller->limitIO4();
+		//int lrCon = controller->reachLimit56();
+		//int udCon = controller->reachLimit2324();
+		/*if(lrCondition==1) scanLR = leftDirect;
+		else if(lrCondition==2) scanLR = rightDirect;
+		
+		if(udCondition==1) scanUD = downDirect;
+		else if(udCondition==2) scanUD = upDirect;
+		//printf("out\n");
+		controller->rotateMotor_56(scanLR);
+		controller->rotateMotor_2324(scanUD);*/
+		/*if(lrCon==1){
+			controller->rotateMotor_56(leftDirect);
+			delay(200);
+			controller->stopMotor_56();
+		}
+		else if(lrCon==2){
+			controller->rotateMotor_56(rightDirect);
+			delay(200);
+			controller->stopMotor_56();
+		}
+		if(udCon==1){
+			controller->rotateMotor_2324(downDirect);
+			delay(200);
+			controller->stopMotor_2324();
+		}
+		else if(udCon==2){
+			controller->rotateMotor_2324(upDirect);
+			delay(200);
+			controller->stopMotor_2324();
+		}*/
+		
 		
 		v.read(frame);
 		if(flipFlag) flip(frame, frame, -1);
@@ -140,18 +177,22 @@ void mainSystem::run() {
 		int uvOutput = controller->readUV();
 		int smokeOutput = controller->readSmoke();
 		bool ppOutput = false;
-		//uvOutput=HIGH;
+		if(uvInit) uvOutput=HIGH;
 
+		obtainPos();
 		if(uvOutput==HIGH){
 			// nerual network
-			objs = detector->RunModel(frame, dst);
+			objs = detector->RunModel(dst);
+			//printf("objs size:%d\n",objs.size());
 
 			ppOutput = feedbackControlpp(objs, uvOutput);
 			if(ppOutput){
+				imshow("result",dst);
 				upAndDownTrigger(dist(eng));
 			}
 			else{
 				unTrigger();
+				if(lastTrigger&&(abs(currentPos56-triggerPos56)>1||abs(currentPos2324-triggerPos2324)>1))accumulateTrace=0;
 			}
 			scanOrTrace+=12;
 		}
@@ -160,7 +201,7 @@ void mainSystem::run() {
 			controller->stopMotor_56();
 		}
 
-		obtainPos();
+		
 		judgeStatus(uvOutput, smokeOutput, ppOutput);
 
 		modbusInterval = ++modbusInterval%21;
@@ -171,7 +212,7 @@ void mainSystem::run() {
 		if(serverStatus && serverInterval==20) serverStatus = modbusReply();
 
 		//imshow("origin", frame);
-		imshow("result",dst);
+		
 		
 		// keyboard
 		int key = waitKey(1);
@@ -260,10 +301,10 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 			traceObject.rec = lastTrace.rec;
 			
 			if(abs(ldx)<rangePosx) traceObject.diff_cx = ldx;
-			else traceObject.diff_cx = ldx>0?ldx-rangePosx/2:ldx+rangePosx/2;
+			else traceObject.diff_cx = ldx>0?ldx-rangePosx/4:ldx+rangePosx/4;
 			
 			if(abs(ldy)<rangePosy) traceObject.diff_cy = ldy;
-			else traceObject.diff_cy = ldy>0?ldy-rangePosy/2:ldy+rangePosy/2;
+			else traceObject.diff_cy = ldy>0?ldy-rangePosy/4:ldy+rangePosy/4;
 		}
 		else if(uv==HIGH){
 			cameraScan();
@@ -297,11 +338,11 @@ bool mainSystem::feedbackControlpp(const std::vector<Object>& objs, const int& u
 	lastTrace = traceObject;
 	if(traceObject.prob>=threshold) {
 		accumulateTrace+=4;
-		if(accumulateTrace>100)accumulateTrace=100;
-		if(accumulateTrace>50) return true;
+		if(accumulateTrace>110)accumulateTrace=110;
+		if(accumulateTrace>75) return true;//ensure the constantly water in triggering
 	}
 	if(abs(traceObject.diff_cx)<rangePosx && abs(traceObject.diff_cy)<rangePosy){
-		if(accumulateTrace>40)return true;
+		if(accumulateTrace>35)return true;
 		else if(accumulateTrace<5)lastTrace = Object();
 	}
 	return false;
@@ -329,7 +370,7 @@ void mainSystem::resetStatus(){
 
 void mainSystem::unTrigger(){
 	controller->unTrigger();
-	lastTrigger = false;
+	if(accumulateTrace==0)lastTrigger = false;
 }
 
 void mainSystem::cameraScan(){
@@ -339,7 +380,7 @@ void mainSystem::cameraScan(){
 	int lrCondition = controller->reachLimit56();
 	int udCondition = controller->reachLimit2324();
 	if(!lrCondition && !udCondition){
-		printf("in\n");
+		//printf("in\n");
 		controller->rotateMotor_56(scanLR);
 		controller->rotateMotor_2324(scanUD);
 	}
@@ -349,7 +390,7 @@ void mainSystem::cameraScan(){
 		
 		if(udCondition==1) scanUD = downDirect;
 		else if(udCondition==2) scanUD = upDirect;
-		printf("out\n");
+		//printf("out\n");
 		controller->rotateMotor_56(scanLR);
 		controller->rotateMotor_2324(scanUD);
 		delay(200);
@@ -364,14 +405,17 @@ void mainSystem::judgeStatus(int uvOut, int smokeOut, bool ppOut){
 }
 
 void mainSystem::upAndDownTrigger(int randomCurrent){
-	triggerCount = ++triggerCount%11;
-	if(triggerCount<10) return; 
+	triggerPos56=currentPos56;
+	triggerPos2324=currentPos2324;
+	triggerCount = ++triggerCount%31;
+	if(triggerCount<30) return; 
 	
 	controller->onTrigger();
-	controller->rotateMotor_2324(randomCurrent);
+	controller->rotateMotor_2324(randomCurrent, false);
 	delay(500);
-	controller->rotateMotor_2324(!randomCurrent);
+	controller->rotateMotor_2324(!randomCurrent, false);
 	delay(500);
+	controller->stopMotor_2324();
 	lastTrigger = true;
 }
 

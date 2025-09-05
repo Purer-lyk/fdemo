@@ -20,7 +20,7 @@ public:
 	bool limitIO3();
 	bool limitIO4();
 	bool rotateMotor_56(int direct);
-	bool rotateMotor_2324(int direct);
+	bool rotateMotor_2324(int direct, bool calTime=true);
 	bool stopMotor_56();
 	bool stopMotor_2324();
 	bool pauseMotor_56();

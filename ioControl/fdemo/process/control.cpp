@@ -195,7 +195,7 @@ bool WiringControl::rotateMotor_56(int direct){
 }
 
 //up and down controller
-bool WiringControl::rotateMotor_2324(int direct){
+bool WiringControl::rotateMotor_2324(int direct, bool calTime){
 	direct_2324 = direct;
 	startMotor_2324();
 	//首先设置正反转,HIGH表示up,LOW表示down
@@ -204,6 +204,10 @@ bool WiringControl::rotateMotor_2324(int direct){
 	//change the value no difference
 	//write until manual stop
 	softPwmWrite(UAD_PUL, POWER-1);
+	if(!calTime){
+		startFlag2324=0;
+		return true;
+	}
 	auto tmp = std::chrono::high_resolution_clock::now();
 	if(startFlag2324==0){
 		startFlag2324=1;

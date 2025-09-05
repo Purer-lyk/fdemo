@@ -36,20 +36,22 @@ private:
 	int serverInterval;
 
 	double currentPos56, currentPos2324;
+	double triggerPos56, triggerPos2324;
 	int fireStatus;//0-no,1-small,2-middle,3-big
 	int triggerCount;
 	int scanOrTrace;//0-nothing,1-scaning,2-tracing
 	int scanUD, scanLR;
 	bool lastTrigger;
 	
-	std::string modelFile;
+	std::string modelFile, reModelFile;
 	bool rstOrNot;
 	double imgLight;
 	int ycOffset;
 	int yawLimit, pitchLimit;
-	float gthreshold;
+	float gthreshold, rethreshold;
 	int leftDirect, upDirect, rightDirect, downDirect;
 	int yawInitPos, pitchInitPos;
+	bool uvInit;
 	std::vector<float> distinct;
 	std::string modbusIP;
 	int modbusPORT;

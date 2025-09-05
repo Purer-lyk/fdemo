@@ -1,15 +1,18 @@
 #include "paddle_detection.h"
 
 
-paddleDetector::paddleDetector(std::string model_file, double imgLight, int yco, float thres):
+paddleDetector::paddleDetector(std::string model_file, std::string re_file, double imgLight, int yco, float thres, float rethres):
 in_width(320),
 in_height(320),
+re_width(32),
+re_height(32),
 threshold(thres),
+_threshold(rethres),
 traceCx(in_width/2),
 traceCy(in_height/2),
 ycOffset(yco),
 convertLight(imgLight),
-cnt(0)
+save_cnt(0)
 {
 	categories.push_back("fire");
 	// 1. Set MobileConfig
@@ -19,20 +22,17 @@ cnt(0)
 	
 	// 2. Create PaddlePredictor by MobileConfig
 	predictor = CreatePaddlePredictor<MobileConfig>(config);
+
+	//recognization
+	reconfig.set_model_from_file(re_file);
+	reconfig.set_power_mode(LITE_POWER_NO_BIND);
+	config.set_threads(2);
+	repredictor = CreatePaddlePredictor<MobileConfig>(reconfig);
 }
 
 paddleDetector::~paddleDetector(){}
 
-void paddleDetector::pre_initial(cv::Mat& img){
-	cv::Mat hsvDst;
-	cvtColor(img, hsvDst, cv::COLOR_BGR2HSV);
-	cv::Scalar avg = cv::mean(hsvDst);
-	//printf("mean v:%f\n", avg.val[2]);
-	float brightScale = convertLight/avg.val[2];
-	if(avg.val[2]>100)convertScaleAbs(img, img, brightScale);
-}
-
-std::vector<Object> paddleDetector::RunModel(cv::Mat &in, cv::Mat &img){
+std::vector<Object> paddleDetector::RunModel(cv::Mat &img){
 	pre_initial(img);
 	wScale = (float)img.cols/(float)in_width;
 	hScale = (float)img.rows/(float)in_height;
@@ -77,6 +77,15 @@ std::vector<Object> paddleDetector::RunModel(cv::Mat &in, cv::Mat &img){
 	return rec_out;
 }
 
+void paddleDetector::pre_initial(cv::Mat& img){
+	cv::Mat hsvDst;
+	cvtColor(img, hsvDst, cv::COLOR_BGR2HSV);
+	cv::Scalar avg = cv::mean(hsvDst);
+	//printf("mean v:%f\n", avg.val[2]);
+	float brightScale = convertLight/avg.val[2];
+	if(avg.val[2]>100)convertScaleAbs(img, img, brightScale);
+}
+
 std::vector<Object> paddleDetector::detect_object(const float* data,
 												  int count,
 												  float thresh,
@@ -109,15 +118,19 @@ std::vector<Object> paddleDetector::detect_object(const float* data,
 			//trace
 			obj.diff_cx = traceCx-cx;
 			obj.diff_cy = traceCy-cy;
+
+			//recognization
+			cv::Mat _image = image(rec_clip);
+			bool reCondition = recognize(_image);
 			
-			if (w > 0 && h > 0 && obj.prob <= 1) {
+			if (w > 0 && h > 0 && obj.prob <= 1 && reCondition) {
+				save_cnt++;
+				char imgName[20];
+				sprintf(imgName, "%d.jpg", save_cnt);
+				cv::imwrite(imgName, image(rec_clip));
+				
 				rect_out.push_back(obj);
 				cv::rectangle(image, rec_clip, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
-				
-				/*cnt++;
-				char imgName[20];
-				sprintf(imgName, "%d.jpg", cnt);
-				cv::imwrite(imgName, image(rec_clip));*/
 				
 				std::string str_prob = std::to_string(obj.prob);
 				std::string text = std::string(categories[obj.class_id]) + ": " +
@@ -155,6 +168,34 @@ std::vector<Object> paddleDetector::detect_object(const float* data,
 	return rect_out;
 }
 
+bool paddleDetector::recognize(cv::Mat& img){
+	// input 0
+	std::unique_ptr<Tensor> input_tensor1(std::move(repredictor->GetInput(0)));
+	input_tensor1->Resize({1, 3, re_height, re_width});
+	auto* data1 = input_tensor1->mutable_data<float>();
+	pre_reprocess(img, re_width, re_height, data1);
+
+	// Run
+	repredictor->Run();
+
+	// Get output
+	std::unique_ptr<const Tensor> output_tensor(
+			std::move(repredictor->GetOutput(0)));
+	auto* outptr = output_tensor->data<float>();
+	int cnt=1;
+	auto shape_out = output_tensor->shape();
+	for (auto& i : shape_out) {
+		cnt *= i;
+	}
+	//printf("cnt:%d\n", cnt);
+	if(outptr[0]>outptr[1]){
+		printf("true:%f,%f\n",outptr[0],outptr[1]);
+		return true;
+	}
+	printf("false:%f,%f\n",outptr[0],outptr[1]);
+	return false;
+}
+
 void paddleDetector::pre_process(const cv::Mat& img, int width, int height, float* data) {
 	cv::Mat rgb_img;
 	cv::cvtColor(img, rgb_img, cv::COLOR_BGR2RGB);
@@ -164,6 +205,20 @@ void paddleDetector::pre_process(const cv::Mat& img, int width, int height, floa
 	rgb_img.convertTo(imgf, CV_32FC3, 1 / 255.f);
 	std::vector<float> mean = {0.485f, 0.456f, 0.406f};
 	std::vector<float> scale = {0.229f, 0.224f, 0.225f};
+	const float* dimg = reinterpret_cast<const float*>(imgf.data);
+	neon_mean_scale(dimg, data, width * height, mean, scale);
+}
+	
+void paddleDetector::pre_reprocess(const cv::Mat& img, int width, int height, float* data){
+	cv::Mat rgb_img;
+	img.copyTo(rgb_img);
+	//cv::cvtColor(img, rgb_img, cv::COLOR_BGR2RGB);
+	cv::resize(
+			rgb_img, rgb_img, cv::Size(width, height), 0.f, 0.f, cv::INTER_CUBIC);
+	cv::Mat imgf;
+	rgb_img.convertTo(imgf, CV_32FC3, 1.f/255.f);
+	std::vector<float> mean = {0.5f, 0.5f, 0.5f};
+	std::vector<float> scale = {0.5f, 0.5f, 0.5f};
 	const float* dimg = reinterpret_cast<const float*>(imgf.data);
 	neon_mean_scale(dimg, data, width * height, mean, scale);
 }
