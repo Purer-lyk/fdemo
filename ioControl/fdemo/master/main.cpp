@@ -1,11 +1,15 @@
 #include "main.h"
 #include "main_system.h"
 
+std::atomic<bool> run_(true);
 
-#define MODEL "/home/l/Pack/model/ppyolo_5.nb"
+void signalHandler(int){
+    run_ = false;
+}
 
 int main(){
 	mainSystem worker;
+	signal(SIGINT, signalHandler);
 	worker.run();
 	return 0;
 }
