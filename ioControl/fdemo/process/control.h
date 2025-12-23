@@ -6,14 +6,15 @@
 #include <wiringSerial.h>
 #include <softPwm.h>
 #include <chrono>
+#include "main.h"
 
-#define POWER 12
+#define POWER 14
 
 using seconds_duration = std::chrono::duration<double>;
 
 class WiringControl{
 public:
-	WiringControl(int leftDirect, int upDirect, int yawLi, int pitchLi);
+	WiringControl(int leftDirect, int upDirect, float yawLi, float pitchLi);
 	~WiringControl();
 
 	bool inOpen();
@@ -30,13 +31,14 @@ public:
 	bool onTrigger();
 	bool unTrigger();
 	bool temprateControl();
+	bool stopTempControl();
 	int readUV();
-	double getPosition56();
-	double getPosition2324();
+	float getPosition56();
+	float getPosition2324();
 	bool resetPos();
 	int readSmoke();
-	// void rstZeroYaw();
-	// void rstZeroPitch();
+	void resetYaw();
+	void resetPitch();
 	int reachLimit56();
 	int reachLimit2324();
 	int smoking;
@@ -65,8 +67,8 @@ private:
 	
 	int leftFlag, rightFlag;
 	int upFlag, downFlag;
-	int yawLimit;
-	int pitchLimit;
+	float yawLimit;
+	float pitchLimit;
 
 	int startFlag56;
 	double timePos56;

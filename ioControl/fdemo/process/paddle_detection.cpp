@@ -1,16 +1,18 @@
 #include "paddle_detection.h"
+#include <vector>
 
 
-paddleDetector::paddleDetector(std::string model_file, std::string re_file, double imgLight, int yco, float thres, float rethres):
+paddleDetector::paddleDetector(std::string model_file, std::string re_file, double imgLight, int yco, int xco, float thres, float rethres):
 in_width(320),
 in_height(320),
-re_width(32),
-re_height(32),
+re_width(224),
+re_height(224),
 threshold(thres),
 _threshold(rethres),
 traceCx(in_width/2),
 traceCy(in_height/2),
 ycOffset(yco),
+xcOffset(xco),
 convertLight(imgLight),
 save_cnt(0)
 {
@@ -30,13 +32,19 @@ save_cnt(0)
 	repredictor = CreatePaddlePredictor<MobileConfig>(reconfig);
 }
 
-paddleDetector::~paddleDetector(){}
+paddleDetector::~paddleDetector(){
+	printf("save_cnt:%d\n",save_cnt);
+}
+
+void paddleDetector::updateYc(int yc){
+	ycOffset = yc;
+}
 
 std::vector<Object> paddleDetector::RunModel(cv::Mat &img){
 	pre_initial(img);
 	wScale = (float)img.cols/(float)in_width;
 	hScale = (float)img.rows/(float)in_height;
-	traceCx = img.cols/2;
+	traceCx = img.cols/2+xcOffset;
 	traceCy = img.rows/2+ycOffset;
 	// 3. Prepare input data from image
 	// input 0
@@ -77,13 +85,36 @@ std::vector<Object> paddleDetector::RunModel(cv::Mat &img){
 	return rec_out;
 }
 
+cv::Mat paddleDetector::gammaCorrection(const cv::Mat& input, double gamma) {
+    cv::Mat normalized;
+    input.convertTo(normalized, CV_32F, 1.0/255.0);
+    
+    cv::Mat output;
+    cv::pow(normalized, gamma, output);
+    
+    // 还原到 [0,255]
+    output.convertTo(output, CV_8U, 255.0);
+    return output;
+}
+
 void paddleDetector::pre_initial(cv::Mat& img){
-	cv::Mat hsvDst;
 	cvtColor(img, hsvDst, cv::COLOR_BGR2HSV);
 	cv::Scalar avg = cv::mean(hsvDst);
+	printf("avg_val_2:%f\n", avg.val[2]);
+	//float brightScale = convertLight/avg.val[2];
+	//convertScaleAbs(img, img, brightScale);
+	//std::vector<cv::Mat> channels;
+	cv::Mat binDst;
+	// cv::inRange(img, cv::Scalar(50,0,50), cv::Scalar(255,255,255), binDst);
+	cv::inRange(hsvDst, cv::Scalar(0, 10, 120), cv::Scalar(130, 255, 255), binDst);
+	cvtColor(binDst, binDst, cv::COLOR_GRAY2BGR);
+	img = img&binDst;
+	
+	int gamma = avg.val[2]>convertLight?(avg.val[2]-convertLight)/9:2.5;
+	img = gammaCorrection(img, gamma);
+	
 	//printf("mean v:%f\n", avg.val[2]);
-	float brightScale = convertLight/avg.val[2];
-	if(avg.val[2]>100)convertScaleAbs(img, img, brightScale);
+	
 }
 
 std::vector<Object> paddleDetector::detect_object(const float* data,
@@ -120,19 +151,22 @@ std::vector<Object> paddleDetector::detect_object(const float* data,
 			obj.diff_cy = traceCy-cy;
 
 			//recognization
-			cv::Mat _image = image(rec_clip);
-			bool reCondition = recognize(_image);
+			//cv::Mat _image = image(rec_clip);
+			//bool reCondition = recognize(_image);
 			
-			if (w > 0 && h > 0 && obj.prob <= 1 && reCondition) {
+			//hsvRecognization
+			bool hsvCondition = hsvRecognize(rec_clip);
+			
+			if (w > 0 && h > 0 && obj.prob <= 1 && hsvCondition) {
 				save_cnt++;
-				char imgName[20];
+				/*char imgName[20];
 				sprintf(imgName, "%d.jpg", save_cnt);
-				cv::imwrite(imgName, image(rec_clip));
+				cv::imwrite(imgName, image(rec_clip));*/
 				
 				rect_out.push_back(obj);
 				cv::rectangle(image, rec_clip, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
 				
-				std::string str_prob = std::to_string(obj.prob);
+				/*std::string str_prob = std::to_string(obj.prob);
 				std::string text = std::string(categories[obj.class_id]) + ": " +
 								   str_prob.substr(0, str_prob.find(".") + 4);
 				int font_face = cv::FONT_HERSHEY_COMPLEX_SMALL;
@@ -153,7 +187,7 @@ std::vector<Object> paddleDetector::detect_object(const float* data,
 							new_font_scale,
 							cv::Scalar(0, 255, 255),
 							thickness,
-							cv::LINE_AA);
+							cv::LINE_AA);*/
 				
 				/*std::cout << "detection, image size: " << image.cols << ", "
 						  << image.rows
@@ -166,6 +200,46 @@ std::vector<Object> paddleDetector::detect_object(const float* data,
 		data += 6;
 	}
 	return rect_out;
+}
+
+bool paddleDetector::hsvRecognize(const cv::Rect& roi){
+	cv::Mat hsv_roi = hsvDst(roi);
+	
+	std::vector<cv::Mat> ch;
+	cv::split(hsv_roi, ch);
+	
+	cv::Scalar mean, stddev;
+	cv::meanStdDev(hsv_roi, mean, stddev);
+	//cv::meanStdDev(ch[0], mean, stddev);
+	printf("h_std:%f\n", stddev[0]);
+	printf("h_mean:%f\n", mean[0]);
+	
+	//~ if(stddev[0]>20){
+		//~ return false;
+	//~ }
+	
+	//cv::meanStdDev(ch[1], mean, stddev);
+	printf("s_std:%f\n", stddev[1]);
+	printf("s_mean:%f\n", mean[1]);
+	
+	//~ if(stddev[1]<30){
+		
+		//~ return false;
+	//~ }
+	
+	//cv::meanStdDev(ch[2], mean, stddev);
+	printf("v_std:%f\n", stddev[2]);
+	printf("v_mean:%f\n", mean[2]);
+	
+	//~ if(stddev[2]<30){
+		
+		//~ return false;
+	//~ }
+	
+	bool condition1 = stddev[0]<20 && stddev[1]>30 && stddev[2]>30;
+	bool condition2 = mean[0]<40 && mean[1]>80 && mean[1]<200 && mean[2]>100;
+	if(condition1 || condition2) return true;
+	else return false;
 }
 
 bool paddleDetector::recognize(cv::Mat& img){
@@ -188,7 +262,7 @@ bool paddleDetector::recognize(cv::Mat& img){
 		cnt *= i;
 	}
 	//printf("cnt:%d\n", cnt);
-	if(outptr[0]>outptr[1]){
+	if(outptr[0]>_threshold){
 		printf("true:%f,%f\n",outptr[0],outptr[1]);
 		return true;
 	}
@@ -199,8 +273,8 @@ bool paddleDetector::recognize(cv::Mat& img){
 void paddleDetector::pre_process(const cv::Mat& img, int width, int height, float* data) {
 	cv::Mat rgb_img;
 	cv::cvtColor(img, rgb_img, cv::COLOR_BGR2RGB);
-	cv::resize(
-			rgb_img, rgb_img, cv::Size(width, height), 0.f, 0.f, cv::INTER_CUBIC);
+	/*cv::resize(
+			rgb_img, rgb_img, cv::Size(width, height), 0.f, 0.f, cv::INTER_CUBIC);*/
 	cv::Mat imgf;
 	rgb_img.convertTo(imgf, CV_32FC3, 1 / 255.f);
 	std::vector<float> mean = {0.485f, 0.456f, 0.406f};
@@ -210,15 +284,15 @@ void paddleDetector::pre_process(const cv::Mat& img, int width, int height, floa
 }
 	
 void paddleDetector::pre_reprocess(const cv::Mat& img, int width, int height, float* data){
-	cv::Mat rgb_img;
-	img.copyTo(rgb_img);
-	//cv::cvtColor(img, rgb_img, cv::COLOR_BGR2RGB);
+	cv::Mat bgr_img, rgb_img;
+	img.copyTo(bgr_img);
+	cv::cvtColor(bgr_img, rgb_img, cv::COLOR_BGR2RGB);
 	cv::resize(
 			rgb_img, rgb_img, cv::Size(width, height), 0.f, 0.f, cv::INTER_CUBIC);
 	cv::Mat imgf;
 	rgb_img.convertTo(imgf, CV_32FC3, 1.f/255.f);
-	std::vector<float> mean = {0.5f, 0.5f, 0.5f};
-	std::vector<float> scale = {0.5f, 0.5f, 0.5f};
+	std::vector<float> mean = {0.485f, 0.456f, 0.406f};
+	std::vector<float> scale = {0.229f, 0.224f, 0.225f};
 	const float* dimg = reinterpret_cast<const float*>(imgf.data);
 	neon_mean_scale(dimg, data, width * height, mean, scale);
 }
