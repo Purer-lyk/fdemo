@@ -1,6 +1,7 @@
 #ifndef FIREDEMO_MAIN_SYSTEM_H
 #define FIREDEMO_MAIN_SYSTEM_H
 
+#include "main.h"
 #include "control.h"
 #include "paddle_detection.h"
 #include "modbus_m_client.h"
@@ -12,16 +13,30 @@
 
 using namespace cv;
 
+enum status{
+    RESET=1,
+    STILL,
+    SCAN,
+    CONTROL,
+    TRIGGER
+};
+
 class mainSystem{
 public:
 	mainSystem();
 	~mainSystem();
 	void run();
+	void stop();
 	
 private:
+	enum status systemStatus;
+	
+	int save_cnt;
+
 	int srcW, srcH;
 	int rangePosx, rangePosy;
 	int accumulateTrace;
+	int noTraceOffset;
 	
 	int modbusReconnect;
 	int tcpReconnect;
@@ -42,25 +57,35 @@ private:
 	int scanOrTrace;//0-nothing,1-scaning,2-tracing
 	int scanUD, scanLR;
 	bool lastTrigger;
+	bool lastScan;
+	float scanState;
+	float scanOffset;
+	int triggerDirect;
 	
 	std::string modelFile, reModelFile;
 	bool rstOrNot;
 	double imgLight;
-	int ycOffset;
-	int yawLimit, pitchLimit;
+	int ycOffset, xcOffset;
+	float yawLimit, pitchLimit;
 	float gthreshold, rethreshold;
 	int leftDirect, upDirect, rightDirect, downDirect;
-	int yawInitPos, pitchInitPos;
 	bool uvInit;
 	std::vector<float> distinct;
 	std::string modbusIP;
 	int modbusPORT;
 	bool flipFlag;
-	int device;
+	cv::String device;
 	
+	int thermalCount;
+	int thermalDisable;
+	
+	bool findTarget(const std::vector<Object>& objs, const int& uv);
+	void tinyModify56(int diffCx);
 	bool feedbackControlpp(const std::vector<Object>& objs, const int& uv);
 	void cameraScan();
-	void upAndDownTrigger(int randomCurrent);
+	void stdScan();
+	void singleScan();
+	void upAndDownTrigger();
 
 	bool modbusTransfer();
 	bool tcpTransfer();
@@ -71,11 +96,17 @@ private:
 	void checkServer();
 
 	void obtainPos();
+	void printPos();
 	void readParams();
 	void judgeStatus(int uvOut, int smokeOut, bool ppOut);
 	void loseTarget();
 	void resetStatus();
 	void unTrigger();
+	void modifyPitch();
+	
+	void startThermal();
+	void stopThermal();
+	bool readThermal();
 	
 	Mat frame;
 	Mat dst;
@@ -83,8 +114,9 @@ private:
 	paddleDetector* detector;
 	modbusClient* modbuser;
 	modbusServer* server;
-	Object lastTrace;
 	tcpClient* tcper;
+	
+	Object lastTrace;
 
 };
 
