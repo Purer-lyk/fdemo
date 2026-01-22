@@ -175,8 +175,8 @@ void mainSystem::run() {
 		//thermalOutput = readThermal();
 		//old state change
 		if(uvOutput==HIGH){
-			controller->onAlarm();
 			if(scanOrTrace>400){
+				controller->onAlarm();
 				lastScan = true;
 				// nerual network
 				objs = detector->RunModel(dst);
@@ -662,14 +662,21 @@ void mainSystem::upAndDownTrigger(){
 		triggerCount++;
 		return;
 	}
-	controller->stopMotor_56();
-	controller->onTrigger();
+
+	triggerCount = 80;
+	while(triggerCount>50){
+		controller->stopMotor_56();
+		controller->onTrigger();
+		
+		if(currentPos2324<=triggerPos2324-0.7) triggerDirect = upDirect;
+		else if(currentPos2324>=triggerPos2324+0.05) triggerDirect = downDirect;
+		
+		controller->rotateMotor_2324(triggerDirect, true);
+		
+		triggerCount--;
+		delay(90);
+	}
 	
-	
-	if(currentPos2324<=triggerPos2324-0.6) triggerDirect = upDirect;
-	else if(currentPos2324>=triggerPos2324+0.05) triggerDirect = downDirect;
-	
-	controller->rotateMotor_2324(triggerDirect, true);
 	/*delay(500);
 	controller->rotateMotor_2324(!randomCurrent, false);
 	delay(500);
