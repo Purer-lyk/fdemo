@@ -3,6 +3,8 @@ Encoding=UTF-8
 Type=Application
 Name=fire
 Comment=
-Exec=gnome-terminal -t "fireDemo" -x bash -c "/home/l/Pack/fireDemo;exec bash;" 
+
+Exec=gnome-terminal -t "fireDemo" -x bash -c "/home/l/Pack/start_fireDemo.sh;exec bash;" 
+
 StartupNotify=false
 Terminal=false
